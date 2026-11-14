@@ -1,0 +1,23 @@
+{
+  "name": "lunar-expedition",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lunar Landing Site Navigator — NASA Space Apps Challenge 2026",
+  "license": "Apache-2.0",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @lunar/web",
+    "build": "npm run build -w @lunar/web",
+    "start": "npm run start -w @lunar/web",
+    "test": "npm run test -w @lunar/core",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "check": "npm run typecheck && npm run test && npm run build"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

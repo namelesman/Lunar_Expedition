@@ -1,0 +1,257 @@
+/**
+ * Shared contract for the whole project. Every workstream (globe, UI panel,
+ * Sun/Earth windows, site data, routes) codes against these types.
+ *
+ * Conventions (do not change without updating every consumer):
+ * - Angles are DEGREES unless the name ends in `Rad`.
+ * - Latitude: planetocentric, -90 (south pole) .. +90 (north pole).
+ * - Longitude: EAST-positive, normalized to (-180, 180]. Lon 0 = mean
+ *   sub-Earth meridian (IAU Mean Earth / Polar Axis frame, same as LOLA/LROC).
+ * - Azimuth: measured from local north, clockwise (north 0, east 90,
+ *   south 180, west 270).
+ * - Elevation: angle above the local horizontal plane (tangent to the
+ *   reference sphere at the site). Negative = below it.
+ * - Distances in the 3D scene are in "Moon radii" (1 = 1737.4 km) unless the
+ *   name ends in `M` (meters) or `Km`.
+ * - Timestamps are ISO-8601 strings in UTC (`2026-11-14T18:00:00.000Z`) or
+ *   epoch milliseconds when the name ends in `Ms`.
+ */
+
+export const MOON_RADIUS_KM = 1737.4;
+export const MOON_RADIUS_M = MOON_RADIUS_KM * 1000;
+
+export interface LatLon {
+  lat: number;
+  lon: number;
+}
+
+/** Plain 3-vector, independent of three.js so core stays framework-free. */
+export interface Vec3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
+// ---------------------------------------------------------------------------
+// Landing sites
+// ---------------------------------------------------------------------------
+
+export type SiteCategory =
+  | "apollo"
+  | "clps"
+  | "international"
+  | "artemis"
+  | "south-pole-feature"
+  | "custom";
+
+export type SiteStatus =
+  | "landed"
+  | "crashed"
+  | "planned"
+  | "candidate"
+  | "custom";
+
+export interface Site extends LatLon {
+  /** kebab-case, unique, stable (used in URLs and data file names). */
+  id: string;
+  name: string;
+  /** Mission or program name, e.g. "Apollo 11", "IM-1 (CLPS)". */
+  mission: string;
+  category: SiteCategory;
+  status: SiteStatus;
+  /** Agency / company, e.g. "NASA", "ISRO", "Intuitive Machines". */
+  agency?: string;
+  /** Landing (or planned landing) date, ISO date `YYYY-MM-DD`. */
+  date?: string;
+  description: string;
+  /**
+   * Official URL (NASA, LROC, NSSDCA, or the agency) that states these
+   * coordinates. Never invent coordinates: entries without an official source
+   * must have `todo: true` and be hidden from the default list.
+   */
+  source: string;
+  /** Free-text note about precision / reference frame of the coordinates. */
+  coordinateNote?: string;
+  /** True when the coordinates still need an official source. */
+  todo?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Sun / Earth geometry seen from a site
+// ---------------------------------------------------------------------------
+
+export type Body = "sun" | "earth";
+
+export interface HorizonCoords {
+  azimuthDeg: number;
+  elevationDeg: number;
+}
+
+export interface BodyPosition extends HorizonCoords {
+  body: Body;
+  distanceKm: number;
+  /** Apparent angular radius of the disk. */
+  angularRadiusDeg: number;
+  /** Unit vector from the site toward the body, in the Moon-fixed frame. */
+  directionMoonFixed: Vec3;
+  /** Elevation of the terrain horizon at this body's azimuth (0 = smooth sphere). */
+  terrainHorizonDeg: number;
+  /** Fraction of the disk above the terrain horizon (0..1). */
+  visibleFraction: number;
+}
+
+export interface SunInfo {
+  siteId: string;
+  time: string;
+  sun: BodyPosition;
+  earth: BodyPosition;
+  /** Sun direction in the Moon-fixed frame (for the scene DirectionalLight). */
+  sunDirectionMoonFixed: Vec3;
+  /** Sub-solar point (where the Sun is at zenith). */
+  subSolarPoint: LatLon;
+  /** Sub-Earth point (libration): where Earth is at zenith. */
+  subEarthPoint: LatLon;
+}
+
+/** One time sample of the Sun/Earth state at a site. */
+export interface ConditionSample {
+  timeMs: number;
+  sunAzimuthDeg: number;
+  sunElevationDeg: number;
+  sunVisibleFraction: number;
+  earthAzimuthDeg: number;
+  earthElevationDeg: number;
+  earthVisibleFraction: number;
+}
+
+/** A continuous interval where a condition holds (sunlight, Earth in view). */
+export interface TimeWindow {
+  startMs: number;
+  endMs: number;
+  /** True when the window was cut by the start/end of the analysis range. */
+  openStart: boolean;
+  openEnd: boolean;
+}
+
+export interface SiteConditions {
+  siteId: string;
+  startMs: number;
+  endMs: number;
+  stepMinutes: number;
+  samples: ConditionSample[];
+  sunWindows: TimeWindow[];
+  earthWindows: TimeWindow[];
+  /** Both Sun and Earth visible: power + direct-to-Earth comms. */
+  bothWindows: TimeWindow[];
+  /** Fraction of the range with the Sun (center) above the terrain horizon. */
+  sunlitFraction: number;
+  earthVisibleFraction: number;
+  maxSunElevationDeg: number;
+}
+
+// ---------------------------------------------------------------------------
+// Terrain products (generated by scripts/*.py, consumed in the browser)
+// ---------------------------------------------------------------------------
+
+/**
+ * Terrain horizon around a site: for each azimuth, the elevation angle of the
+ * highest terrain seen from the observer (accounts for lunar curvature).
+ */
+export interface HorizonMask {
+  siteId: string;
+  lat: number;
+  lon: number;
+  /** Observer height above local terrain, meters. */
+  observerHeightM: number;
+  /** Terrain elevation at the site, meters relative to 1737.4 km. */
+  siteElevationM: number;
+  azimuthStepDeg: number;
+  /** elevationsDeg[i] is the horizon at azimuth i * azimuthStepDeg. */
+  elevationsDeg: number[];
+  /** Distance to the terrain that defines the horizon at each azimuth, km. */
+  distancesKm?: number[];
+  maxDistanceKm: number;
+  demSource: string;
+}
+
+/**
+ * Regular grid on the local tangent plane centred at a site (azimuthal
+ * equidistant projection). Works at the poles. Row 0 is the NORTH edge.
+ * Cell (col, row) centre: x = (col - (width-1)/2) * cellSizeM  (east)
+ *                         y = ((height-1)/2 - row) * cellSizeM (north)
+ */
+export interface GridMeta {
+  siteId: string;
+  centerLat: number;
+  centerLon: number;
+  width: number;
+  height: number;
+  cellSizeM: number;
+  demSource: string;
+}
+
+export interface ElevationGrid {
+  meta: GridMeta;
+  /** Elevation in meters relative to the 1737.4 km sphere, row-major. */
+  elevationM: Float32Array;
+}
+
+export interface CostGrid {
+  meta: GridMeta;
+  /** Traversal cost per cell (>= 1). Infinity = blocked. Row-major. */
+  cost: Float32Array;
+}
+
+export interface GridCell {
+  col: number;
+  row: number;
+}
+
+// ---------------------------------------------------------------------------
+// Routes
+// ---------------------------------------------------------------------------
+
+export interface RouteParams {
+  /** Cells steeper than this are blocked. Default 15. */
+  maxSlopeDeg: number;
+  /** Extra cost per shadowed cell. 0 = ignore shadow. */
+  shadowWeight: number;
+  /** Date used to compute the shadow map. */
+  time: string;
+  /** Rover speed on flat terrain, m/s (for the time estimate). */
+  roverSpeedMps: number;
+}
+
+export const DEFAULT_ROUTE_PARAMS: Omit<RouteParams, "time"> = {
+  maxSlopeDeg: 15,
+  shadowWeight: 5,
+  roverSpeedMps: 0.1,
+};
+
+export interface RoutePoint extends GridCell, LatLon {
+  elevationM: number;
+  /** Distance from the start along the route, meters. */
+  distanceM: number;
+  slopeDeg: number;
+  inShadow: boolean;
+}
+
+export interface Route {
+  siteId: string;
+  params: RouteParams;
+  start: GridCell;
+  goal: GridCell;
+  points: RoutePoint[];
+  lengthM: number;
+  maxSlopeDeg: number;
+  /** Fraction of the route length in shadow (0..1). */
+  shadowFraction: number;
+  estimatedTimeH: number;
+  totalCost: number;
+  /** Nodes expanded by A* (for diagnostics). */
+  expanded: number;
+}
+
+export type RouteResult =
+  | { ok: true; route: Route }
+  | { ok: false; reason: "blocked-start" | "blocked-goal" | "no-path" | "out-of-grid" };

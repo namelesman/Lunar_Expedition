@@ -1,0 +1,55 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.*
+
+# build output
+.next/
+out/
+build/
+dist/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# env / secrets
+.env
+.env.*
+!.env.example
+.vercel/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+scripts/.venv/
+
+# ---- NASA raw data and generated heavy assets (NEVER commit: GitHub rejects files > 100 MB) ----
+# Raw downloads (CGI Moon Kit TIFF/EXR, SVS GLB, LOLA DEMs) live here; scripts regenerate everything.
+data/raw/
+data/cache/
+# Generated tile pyramids and optimized models
+apps/web/public/tiles/
+apps/web/public/models/
+# Large binary formats anywhere in the repo
+*.tif
+*.tiff
+*.exr
+*.glb
+*.gltf
+*.img
+*.IMG
+*.lbl
+*.zip
