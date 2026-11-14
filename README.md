@@ -17,7 +17,7 @@ from NASA LRO data.
 ```
 apps/web/        Next.js (App Router) + TypeScript — UI, 3D globe, /api routes
 packages/core/   Pure, tested logic: shared types, lat/lon → 3D, Sun/Earth geometry, horizon, A*
-scripts/         Python preprocessing (NASA downloads, horizon masks, terrain clips, tiles)
+scripts/         Node + TypeScript data pipeline (GLB optimization, horizon masks, terrain grids, fixtures)
 data/            sites.json (curated landing sites with official sources)
 docs/            Challenge summary and design notes
 ```
@@ -32,6 +32,17 @@ npm install
 npm run dev        # http://localhost:3000
 npm test           # unit tests (packages/core)
 npm run check      # typecheck + tests + production build
+```
+
+### Data pipeline (Node + TypeScript, `scripts/`)
+
+Everything runs on Node 22+ with `tsx`; no Python. Raw NASA files go in `data/raw/` (git-ignored).
+
+```bash
+npm run glb:optimize -- path/to/Moon_NASA_LRO_8k_Topo.glb apps/web/public/models   # SVS #14959 → web GLBs
+npm run glb:fit -w @lunar/scripts      # calibrate the GLB against LOLA (needs data/raw/svs-4720/ldem_16_uint.tif)
+npm run data:horizons                  # horizon masks per site (needs ldem_64_uint.tif)
+npm run data:fixtures                  # albedo fixture for the core tests
 ```
 
 ## Data and credits
