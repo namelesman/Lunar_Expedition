@@ -37,6 +37,7 @@ data/cache/
 # Generated tile pyramids and optimized models
 apps/web/public/tiles/
 apps/web/public/models/
+apps/web/public/sky/
 # Large binary formats anywhere in the repo
 *.tif
 *.tiff

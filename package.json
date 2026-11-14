@@ -19,7 +19,9 @@
     "check": "npm run typecheck && npm run test && npm run build",
     "data:horizons": "npm run horizons -w @lunar/scripts",
     "data:fixtures": "npm run fixtures -w @lunar/scripts",
-    "glb:optimize": "npm run glb:optimize -w @lunar/scripts --"
+    "glb:optimize": "npm run glb:optimize -w @lunar/scripts --",
+    "assets:stage": "npm run assets:stage -w @lunar/scripts",
+    "sky:textures": "npm run sky:textures -w @lunar/scripts"
   },
   "engines": {
     "node": ">=22"

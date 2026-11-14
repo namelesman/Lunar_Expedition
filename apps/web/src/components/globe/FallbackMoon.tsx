@@ -33,7 +33,7 @@ export class ModelErrorBoundary extends Component<
     return { failed: true };
   }
   componentDidCatch(error: unknown) {
-    console.warn("[moon] model failed to load, using fallback sphere", error);
+    console.warn("[scene] asset failed to load, using the fallback", error);
   }
   render() {
     return this.state.failed ? this.props.fallback : this.props.children;

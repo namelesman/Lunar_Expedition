@@ -11,6 +11,11 @@ const DAY_MS = 86_400_000;
 /** Round down to the hour so the sample grid is stable while the clock runs. */
 const floorHour = (t: number) => Math.floor(t / 3_600_000) * 3_600_000;
 
+export type BodyScale = "real" | "enlarged";
+export type SkyBody = "earth" | "sun";
+/** Enlargement factor of the "not to scale" Sun/Earth mode. */
+export const ENLARGED_BODY_SCALE = 4;
+
 export interface AppState {
   sites: Site[];
   selectedId: string | null;
@@ -29,6 +34,10 @@ export interface AppState {
   lighting: "sun" | "flat";
   /** Incremented to ask the camera to fly to `selectedId`. */
   flyRequest: number;
+  /** Apparent size of the Sun and Earth in the sky: true, or 4× (not to scale). */
+  bodyScale: BodyScale;
+  /** Camera preset that frames the Sun or the Earth just past the lunar limb. */
+  viewRequest: { body: SkyBody; n: number } | null;
 
   setSites: (sites: Site[]) => void;
   addCustomSite: (site: Site) => void;
@@ -43,6 +52,8 @@ export interface AppState {
   setExaggeration: (k: number) => void;
   setQuality: (q: ModelQuality) => void;
   setLighting: (l: "sun" | "flat") => void;
+  setBodyScale: (b: BodyScale) => void;
+  flyToBody: (body: SkyBody) => void;
 }
 
 export const useApp = create<AppState>((set) => ({
@@ -57,6 +68,8 @@ export const useApp = create<AppState>((set) => ({
   quality: "high",
   lighting: "sun",
   flyRequest: 0,
+  bodyScale: "real",
+  viewRequest: null,
 
   setSites: (sites) => set({ sites }),
   addCustomSite: (site) =>
@@ -90,4 +103,7 @@ export const useApp = create<AppState>((set) => ({
   setExaggeration: (exaggeration) => set({ exaggeration }),
   setQuality: (quality) => set({ quality }),
   setLighting: (lighting) => set({ lighting }),
+  setBodyScale: (bodyScale) => set({ bodyScale }),
+  flyToBody: (body) =>
+    set((s) => ({ viewRequest: { body, n: (s.viewRequest?.n ?? 0) + 1 } })),
 }));

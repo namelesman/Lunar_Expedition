@@ -84,6 +84,69 @@ export function moonSkyState(time: Date | number): MoonSkyState {
   };
 }
 
+/** Three unit vectors: the images of a frame's x, y and z axes in the scene frame. */
+export type Basis3 = [Vec3, Vec3, Vec3];
+
+function makeTime(time: Date | number): Astronomy.AstroTime {
+  return Astronomy.MakeTime(typeof time === "number" ? new Date(time) : time);
+}
+
+/**
+ * Images of the J2000 equatorial (EQJ) unit axes in the scene frame at `time`.
+ * Orients anything fixed on the celestial sphere (star maps) over the Moon.
+ */
+export function eqjToSceneBasis(time: Date | number): Basis3 {
+  const axis = Astronomy.RotationAxis(Astronomy.Body.Moon, makeTime(time));
+  return [
+    eqjToMoonFixed({ x: 1, y: 0, z: 0 }, axis),
+    eqjToMoonFixed({ x: 0, y: 1, z: 0 }, axis),
+    eqjToMoonFixed({ x: 0, y: 0, z: 1 }, axis),
+  ];
+}
+
+/**
+ * Earth body-fixed axes (toward lon 0°, toward lon 90°E, toward the north pole)
+ * in the scene frame. Earth's rotation comes from Greenwich apparent sidereal
+ * time in the true equator of date, rotated back to J2000 (precession and
+ * nutation included), then into the Moon-fixed scene frame.
+ */
+export function earthFixedBasis(time: Date | number): Basis3 {
+  const t = makeTime(time);
+  const axis = Astronomy.RotationAxis(Astronomy.Body.Moon, t);
+  const toEqj = Astronomy.Rotation_EQD_EQJ(t);
+  const theta = Astronomy.SiderealTime(t) * 15 * DEG;
+  const c = Math.cos(theta),
+    s = Math.sin(theta);
+  const eqdAxes: Vec3[] = [
+    { x: c, y: s, z: 0 },
+    { x: -s, y: c, z: 0 },
+    { x: 0, y: 0, z: 1 },
+  ];
+  return eqdAxes.map((v) => {
+    const r = Astronomy.RotateVector(
+      toEqj,
+      new Astronomy.Vector(v.x, v.y, v.z, t),
+    );
+    return eqjToMoonFixed({ x: r.x, y: r.y, z: r.z }, axis);
+  }) as Basis3;
+}
+
+/**
+ * Illuminated fraction of the Earth's disk as seen from the Moon (0 = new
+ * Earth, 1 = full Earth). The phase angle at the Earth is the angle between
+ * the Sun and the Moon; the Sun is far enough that its direction from the Moon
+ * and from the Earth coincide (≤ 0.15°).
+ */
+export function earthIlluminatedFraction(
+  sky: Pick<MoonSkyState, "sunDir" | "earthDir">,
+): number {
+  const d =
+    sky.sunDir.x * sky.earthDir.x +
+    sky.sunDir.y * sky.earthDir.y +
+    sky.sunDir.z * sky.earthDir.z;
+  return (1 - d) / 2;
+}
+
 /** Elevation of the terrain horizon at an azimuth (linear interpolation, wraps at 360°). */
 export function horizonElevationAt(
   mask: HorizonMask | null | undefined,

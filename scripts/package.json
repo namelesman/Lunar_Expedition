@@ -11,7 +11,9 @@
     "glb:fit": "tsx src/fit-glb-scale.ts",
     "horizons": "tsx src/horizons.ts",
     "fixtures": "tsx src/make-test-fixtures.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "sky:textures": "node --max-old-space-size=6000 --import tsx src/make-sky-textures.ts",
+    "assets:stage": "tsx src/stage-assets.ts"
   },
   "dependencies": {
     "@gltf-transform/core": "^4.5.1",
@@ -20,7 +22,8 @@
     "@lunar/core": "*",
     "geotiff": "^2.1.3",
     "meshoptimizer": "^1.3.0",
-    "sharp": "^0.35.5"
+    "sharp": "^0.35.5",
+    "three": "^0.187.0"
   },
   "devDependencies": {
     "@types/node": "^24",
