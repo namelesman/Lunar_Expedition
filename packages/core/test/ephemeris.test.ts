@@ -1,10 +1,16 @@
+import * as Astronomy from "astronomy-engine";
 import { describe, expect, it } from "vitest";
 import {
   bodyPositionAt,
   diskFractionAbove,
+  earthFixedBasis,
+  earthIlluminatedFraction,
+  eqjToSceneBasis,
   horizonElevationAt,
   moonSkyState,
+  type Basis3,
   type HorizonMask,
+  type Vec3,
 } from "../src";
 
 /**
@@ -92,5 +98,77 @@ describe("terrain horizon helpers", () => {
     expect(diskFractionAbove(1, 0, 0.27)).toBe(1);
     expect(diskFractionAbove(-1, 0, 0.27)).toBe(0);
     expect(diskFractionAbove(0.1, 0, 0.27)).toBeGreaterThan(0.5);
+  });
+});
+
+describe("sky orientation (star map and Earth texture)", () => {
+  const dotv = (a: Vec3, b: Vec3) => a.x * b.x + a.y * b.y + a.z * b.z;
+  const cross = (a: Vec3, b: Vec3): Vec3 => ({
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x,
+  });
+  const expectRightHandedOrthonormal = ([x, y, z]: Basis3) => {
+    for (const v of [x, y, z]) expect(dotv(v, v)).toBeCloseTo(1, 12);
+    expect(dotv(x, y)).toBeCloseTo(0, 12);
+    expect(dotv(y, z)).toBeCloseTo(0, 12);
+    expect(dotv(x, z)).toBeCloseTo(0, 12);
+    const c = cross(x, y);
+    expect(dotv(c, z)).toBeCloseTo(1, 12);
+  };
+
+  it("returns right-handed orthonormal bases", () => {
+    expectRightHandedOrthonormal(eqjToSceneBasis(T));
+    expectRightHandedOrthonormal(earthFixedBasis(T));
+  });
+
+  it("maps the EQJ Moon→Sun vector onto moonSkyState().sunDir", () => {
+    const t = Astronomy.MakeTime(new Date(T));
+    const moon = Astronomy.GeoMoon(t);
+    const sun = Astronomy.GeoVector(Astronomy.Body.Sun, t, false);
+    const v = { x: sun.x - moon.x, y: sun.y - moon.y, z: sun.z - moon.z };
+    const n = Math.hypot(v.x, v.y, v.z);
+    const [bx, by, bz] = eqjToSceneBasis(T);
+    const s = {
+      x: (bx.x * v.x + by.x * v.y + bz.x * v.z) / n,
+      y: (bx.y * v.x + by.y * v.y + bz.y * v.z) / n,
+      z: (bx.z * v.x + by.z * v.y + bz.z * v.z) / n,
+    };
+    const ref = moonSkyState(T).sunDir;
+    expect(dotv(s, ref)).toBeCloseTo(1, 12);
+  });
+
+  it("puts the sub-lunar point where RA(of date) − GAST says", () => {
+    // Scene route: Earth→Moon = −earthDir, read in Earth-fixed axes.
+    const [e0, e90, eN] = earthFixedBasis(T);
+    const e = moonSkyState(T).earthDir;
+    const d = { x: -e.x, y: -e.y, z: -e.z };
+    const lon = Math.atan2(dotv(d, e90), dotv(d, e0)) * (180 / Math.PI);
+    const lat = Math.asin(dotv(d, eN)) * (180 / Math.PI);
+    // Direct route: geocentric Moon in the true equator of date.
+    const t = Astronomy.MakeTime(new Date(T));
+    const m = Astronomy.RotateVector(
+      Astronomy.Rotation_EQJ_EQD(t),
+      Astronomy.GeoMoon(t),
+    );
+    const ra = Math.atan2(m.y, m.x) * (180 / Math.PI);
+    const dec = Math.atan2(m.z, Math.hypot(m.x, m.y)) * (180 / Math.PI);
+    const lonRef = ((ra - Astronomy.SiderealTime(t) * 15 + 540) % 360) - 180;
+    const dLon = ((lon - lonRef + 540) % 360) - 180;
+    expect(Math.abs(dLon)).toBeLessThan(0.01);
+    expect(lat).toBeCloseTo(dec, 2);
+    expect(Math.abs(lat)).toBeLessThan(29);
+  });
+
+  it("gives a full Earth at new Moon and a new Earth at full Moon", () => {
+    const start = Astronomy.MakeTime(new Date(T));
+    const newMoon = Astronomy.SearchMoonPhase(0, start, 40)!;
+    const fullMoon = Astronomy.SearchMoonPhase(180, start, 40)!;
+    expect(
+      earthIlluminatedFraction(moonSkyState(newMoon.date)),
+    ).toBeGreaterThan(0.99);
+    expect(earthIlluminatedFraction(moonSkyState(fullMoon.date))).toBeLessThan(
+      0.01,
+    );
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { enuBasis, latLonToVector3 } from "@lunar/core";
+import { enuBasis, latLonToVector3, moonSkyState } from "@lunar/core";
 import { TrackballControls } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
@@ -35,6 +35,7 @@ export function CameraRig({ exaggeration }: { exaggeration: number }) {
   const flight = useRef<Flight | null>(null);
   const get = useThree((s) => s.get);
   const flyRequest = useApp((s) => s.flyRequest);
+  const viewRequest = useApp((s) => s.viewRequest);
 
   useEffect(() => {
     if (!flyRequest) return;
@@ -56,6 +57,49 @@ export function CameraRig({ exaggeration }: { exaggeration: number }) {
       toUp: v(north),
     };
   }, [flyRequest, get]);
+
+  // "Look toward Earth / Sun": an "Earthrise" composition — the Moon centred,
+  // the body rising just above its upper limb (top-centre of the screen is free
+  // of panels on desktop and has the most room on phones).
+  useEffect(() => {
+    if (!viewRequest) return;
+    const camera = get().camera as THREE.PerspectiveCamera;
+    const sky = moonSkyState(useApp.getState().timeMs);
+    const b = v(
+      viewRequest.body === "earth" ? sky.earthDir : sky.sunDir,
+    ).normalize();
+    // "North" projected perpendicular to the body.
+    const north = new THREE.Vector3(0, 1, 0);
+    const n = north.clone().addScaledVector(b, -b.dot(north));
+    if (n.lengthSq() < 1e-6) n.set(1, 0, 0).addScaledVector(b, -b.x);
+    n.normalize();
+    const halfV = THREE.MathUtils.degToRad(camera.fov / 2);
+    const offset = 0.75 * halfV; // body at 3/4 of the half-height, above centre
+    const limb = offset - THREE.MathUtils.degToRad(2.5); // Moon edge just below it
+    const dist = THREE.MathUtils.clamp(
+      1 / Math.sin(Math.max(limb, 0.05)),
+      2.2,
+      11,
+    );
+    // View tilted "down" from the body by `offset`; screen up is ⟂ to the view.
+    const view = b
+      .clone()
+      .multiplyScalar(Math.cos(offset))
+      .addScaledVector(n, -Math.sin(offset));
+    const up = n
+      .clone()
+      .multiplyScalar(Math.cos(offset))
+      .addScaledVector(b, Math.sin(offset));
+    flight.current = {
+      t: 0,
+      fromDir: camera.position.clone().normalize(),
+      toDir: view.clone().negate(),
+      fromDist: camera.position.length(),
+      toDist: dist,
+      fromUp: camera.up.clone(),
+      toUp: up,
+    };
+  }, [viewRequest, get]);
 
   useFrame((state, dt) => {
     const camera = state.camera as THREE.PerspectiveCamera;

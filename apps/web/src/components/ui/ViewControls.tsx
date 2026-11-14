@@ -1,6 +1,6 @@
 "use client";
 
-import { useApp } from "@/lib/store";
+import { ENLARGED_BODY_SCALE, useApp } from "@/lib/store";
 import { MOON_MODELS, type ModelQuality } from "@/lib/svsGlb";
 
 export function ViewControls() {
@@ -10,6 +10,9 @@ export function ViewControls() {
   const setQuality = useApp((s) => s.setQuality);
   const lighting = useApp((s) => s.lighting);
   const setLighting = useApp((s) => s.setLighting);
+  const bodyScale = useApp((s) => s.bodyScale);
+  const setBodyScale = useApp((s) => s.setBodyScale);
+  const flyToBody = useApp((s) => s.flyToBody);
 
   return (
     <div className="pointer-events-auto flex flex-col gap-2 rounded-lg border border-white/10 bg-black/60 p-3 text-xs backdrop-blur">
@@ -46,6 +49,41 @@ export function ViewControls() {
               {l === "sun" ? "Real Sun (selected time)" : "Even"}
             </button>
           ))}
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="w-28 text-neutral-300">Sun &amp; Earth size</span>
+        <div className="flex overflow-hidden rounded border border-white/10">
+          {(["real", "enlarged"] as const).map((b) => (
+            <button
+              key={b}
+              type="button"
+              onClick={() => setBodyScale(b)}
+              aria-pressed={bodyScale === b}
+              className={`px-2 py-0.5 ${bodyScale === b ? "bg-white/15 text-neutral-100" : "text-neutral-400 hover:bg-white/5"}`}
+            >
+              {b === "real" ? "Real" : `${ENLARGED_BODY_SCALE}× (not to scale)`}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="w-28 text-neutral-300">Look toward</span>
+        <div className="flex gap-1">
+          <button
+            type="button"
+            onClick={() => flyToBody("earth")}
+            className="rounded border border-white/10 px-2 py-0.5 text-neutral-300 hover:bg-white/10"
+          >
+            Earth
+          </button>
+          <button
+            type="button"
+            onClick={() => flyToBody("sun")}
+            className="rounded border border-white/10 px-2 py-0.5 text-neutral-300 hover:bg-white/10"
+          >
+            Sun
+          </button>
         </div>
       </div>
       <label className="flex items-center gap-2">

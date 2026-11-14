@@ -37,6 +37,24 @@ export function Credits() {
       >
         CGI Moon Kit
       </a>
+      <span aria-hidden>·</span>
+      <a
+        className="underline hover:text-neutral-200"
+        href="https://svs.gsfc.nasa.gov/4851"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Deep Star Maps 2020 (NASA SVS)
+      </a>
+      <span aria-hidden>·</span>
+      <a
+        className="underline hover:text-neutral-200"
+        href="https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Blue Marble (NASA Earth Observatory)
+      </a>
       <span className="ml-auto">NASA Space Apps Challenge 2026 · Recife</span>
     </footer>
   );

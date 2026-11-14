@@ -43,13 +43,25 @@ npm run glb:optimize -- path/to/Moon_NASA_LRO_8k_Topo.glb apps/web/public/models
 npm run glb:fit -w @lunar/scripts      # calibrate the GLB against LOLA (needs data/raw/svs-4720/ldem_16_uint.tif)
 npm run data:horizons                  # horizon masks per site (needs ldem_64_uint.tif)
 npm run data:fixtures                  # albedo fixture for the core tests
+npm run sky:textures                   # star map (SVS #4851 starmap_2020_8k.exr) + Earth (Blue Marble NG)
+npm run assets:stage                   # stage models + sky for the static assets project
 ```
+
+Heavy web assets (optimized GLBs, star map) are git-ignored and served from a separate static
+Vercel project (`NEXT_PUBLIC_ASSETS_BASE_URL`); `npm run assets:stage` then
+`vercel deploy --prod` in `data/cache/assets-site` publishes them.
 
 ## Data and credits
 
 - NASA's Scientific Visualization Studio — CGI Moon Kit and the LRO 8k topographic Moon model.
 - Lunar Reconnaissance Orbiter Camera (LROC), NASA / GSFC / Arizona State University.
 - Lunar Orbiter Laser Altimeter (LOLA), NASA / GSFC.
+- NASA SVS Deep Star Maps 2020 (svs.gsfc.nasa.gov/4851) — background sky, oriented for the selected date.
+- NASA Earth Observatory Blue Marble Next Generation (Reto Stöckli) — Earth texture.
+
+The Sun and the Earth in the 3D view are drawn at their true directions and apparent sizes
+(≈0.53° and ≈1.9° from the Moon), with an optional 4× "not to scale" mode; the Earth shows its real
+phase and the face turned toward the Moon at that instant.
 
 ## License
 

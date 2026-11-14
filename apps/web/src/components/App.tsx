@@ -1,6 +1,6 @@
 "use client";
 
-import { moonSkyState, type Site } from "@lunar/core";
+import { earthIlluminatedFraction, moonSkyState, type Site } from "@lunar/core";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { useApp } from "@/lib/store";
@@ -33,16 +33,15 @@ export function App({ initialSites }: { initialSites: Site[] }) {
 
   useEffect(() => setSites(initialSites), [initialSites, setSites]);
 
-  const sunDirection = useMemo(
-    () => moonSkyState(timeBucket * 600_000).sunDir,
-    [timeBucket],
-  );
+  const sky = useMemo(() => moonSkyState(timeBucket * 600_000), [timeBucket]);
 
   return (
     <div className="relative h-dvh w-full overflow-hidden bg-black text-neutral-100">
       <div className="absolute inset-0">
         <MoonScene
-          sunDirection={sunDirection}
+          sunDirection={sky.sunDir}
+          earthDirection={sky.earthDir}
+          earthIllumination={earthIlluminatedFraction(sky)}
           onPickSurface={(lat, lon) => addCustomSite(makeCustomSite(lat, lon))}
           onCapabilities={(max) => {
             const mem = (navigator as Navigator & { deviceMemory?: number })
