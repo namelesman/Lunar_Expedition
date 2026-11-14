@@ -1,5 +1,7 @@
 /**
- * LOLA digital elevation models used by the offline pipeline.
+ * Loaders for the LOLA digital elevation models used by the offline pipeline.
+ * The sampling math lives in @lunar/core (terrain.ts) and is shared with the
+ * browser, which reads the same rasters as tiles (scripts/src/dem-tiles.ts).
  *
  * All samplers return heights in meters relative to the 1737.4 km sphere.
  *
@@ -18,24 +20,35 @@
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { fromFile } from "geotiff";
-import { MOON_RADIUS_M } from "@lunar/core";
+import {
+  arrayPixels,
+  EquirectDem,
+  PolarStereoDem,
+  type EquirectGrid,
+  type PolarGrid,
+} from "@lunar/core";
 
-const DEG = Math.PI / 180;
+export { LayeredDem, type DemSampler } from "@lunar/core";
 
-export interface DemSampler {
-  readonly name: string;
-  /** Height (m) at lat/lon, or NaN when the point is outside the DEM. */
-  sample(lat: number, lon: number): number;
-}
-
-export class GlobalDem implements DemSampler {
+export class GlobalDem extends EquirectDem {
   private constructor(
-    readonly name: string,
-    private readonly data: Uint16Array,
-    readonly width: number,
-    readonly height: number,
-    readonly ppd: number,
-  ) {}
+    name: string,
+    grid: EquirectGrid,
+    readonly data: Uint16Array,
+    readonly file: string,
+  ) {
+    super(name, grid, arrayPixels(data, grid.width));
+  }
+
+  get width(): number {
+    return this.grid.width;
+  }
+  get height(): number {
+    return this.grid.height;
+  }
+  get ppd(): number {
+    return this.grid.ppd;
+  }
 
   static async load(path: string): Promise<GlobalDem> {
     const tiff = await fromFile(path);
@@ -52,33 +65,10 @@ export class GlobalDem implements DemSampler {
     const file = path.split(/[\\/]/).pop() ?? path;
     return new GlobalDem(
       `LOLA ${ppd} px/deg (CGI Moon Kit ${file}, svs.gsfc.nasa.gov/4720)`,
+      { width, height, ppd, scale: 0.5, offset: -10_000 },
       data,
-      width,
-      height,
-      ppd,
+      file,
     );
-  }
-
-  /** Bilinear, wraps in longitude, clamps in latitude. */
-  sample(lat: number, lon: number): number {
-    const W = this.width,
-      H = this.height,
-      ppd = this.ppd;
-    const x = ((((lon + 180) % 360) + 360) % 360) * ppd - 0.5;
-    let y = (90 - lat) * ppd - 0.5;
-    y = Math.min(Math.max(y, 0), H - 1.000001);
-    let x0 = Math.floor(x);
-    const y0 = Math.floor(y);
-    const fx = x - x0,
-      fy = y - y0;
-    x0 = ((x0 % W) + W) % W;
-    const x1 = (x0 + 1) % W;
-    const y1 = Math.min(y0 + 1, H - 1);
-    const d = this.data;
-    const v =
-      (d[y0 * W + x0] * (1 - fx) + d[y0 * W + x1] * fx) * (1 - fy) +
-      (d[y1 * W + x0] * (1 - fx) + d[y1 * W + x1] * fx) * fy;
-    return v * 0.5 - 10_000;
   }
 }
 
@@ -88,16 +78,28 @@ function lblNumber(lbl: string, key: string): number {
   return Number(m[1]);
 }
 
-export class PolarDem implements DemSampler {
+export class PolarDem extends PolarStereoDem {
   private constructor(
-    readonly name: string,
-    private readonly data: Int16Array,
-    readonly size: number,
-    readonly scaleM: number,
-    readonly center: number,
-    readonly maxLat: number,
-    private readonly scaling: number,
-  ) {}
+    name: string,
+    grid: PolarGrid,
+    readonly data: Int16Array,
+    readonly file: string,
+  ) {
+    super(name, grid, arrayPixels(data, grid.size));
+  }
+
+  get size(): number {
+    return this.grid.size;
+  }
+  get scaleM(): number {
+    return this.grid.scaleM;
+  }
+  get center(): number {
+    return this.grid.center;
+  }
+  get maxLat(): number {
+    return this.grid.edgeLat;
+  }
 
   /** Loads `<path>.IMG` with its `<path>.LBL`; returns null when the files are absent. */
   static async load(pathNoExt: string): Promise<PolarDem | null> {
@@ -128,56 +130,16 @@ export class PolarDem implements DemSampler {
     const scaleM = lblNumber(lbl, "MAP_SCALE");
     return new PolarDem(
       `LOLA ${file} (${scaleM} m/px polar stereographic, imbrium.mit.edu LOLA GDR)`,
+      {
+        pole: "south",
+        size,
+        center,
+        scaleM,
+        edgeLat: lblNumber(lbl, "MAXIMUM_LATITUDE"),
+        scale: lblNumber(lbl, "SCALING_FACTOR"),
+      },
       data,
-      size,
-      scaleM,
-      center,
-      lblNumber(lbl, "MAXIMUM_LATITUDE"),
-      lblNumber(lbl, "SCALING_FACTOR"),
+      file,
     );
-  }
-
-  sample(lat: number, lon: number): number {
-    if (lat > this.maxLat) return NaN;
-    const rho = 2 * MOON_RADIUS_M * Math.tan(Math.PI / 4 + (lat * DEG) / 2);
-    const col = this.center + (rho * Math.sin(lon * DEG)) / this.scaleM;
-    const row = this.center - (rho * Math.cos(lon * DEG)) / this.scaleM;
-    const c0 = Math.floor(col),
-      r0 = Math.floor(row);
-    // Stay one pixel inside the edge (the corners beyond maxLat hold no data).
-    if (c0 < 1 || r0 < 1 || c0 >= this.size - 2 || r0 >= this.size - 2)
-      return NaN;
-    const fc = col - c0,
-      fr = row - r0,
-      n = this.size,
-      d = this.data;
-    const v =
-      (d[r0 * n + c0] * (1 - fc) + d[r0 * n + c0 + 1] * fc) * (1 - fr) +
-      (d[(r0 + 1) * n + c0] * (1 - fc) + d[(r0 + 1) * n + c0 + 1] * fc) * fr;
-    return v * this.scaling;
-  }
-}
-
-/** First sampler (finest first) that covers the point; tracks which one was used. */
-export class LayeredDem implements DemSampler {
-  readonly used: number[];
-  constructor(readonly layers: DemSampler[]) {
-    this.used = layers.map(() => 0);
-  }
-  get name(): string {
-    return this.layers.map((l) => l.name).join(" + ");
-  }
-  sample(lat: number, lon: number): number {
-    for (let i = 0; i < this.layers.length; i++) {
-      const v = this.layers[i].sample(lat, lon);
-      if (!Number.isNaN(v)) {
-        this.used[i]++;
-        return v;
-      }
-    }
-    return NaN;
-  }
-  resetUsage(): void {
-    this.used.fill(0);
   }
 }

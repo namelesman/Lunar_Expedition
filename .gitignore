@@ -38,6 +38,7 @@ data/cache/
 apps/web/public/tiles/
 apps/web/public/models/
 apps/web/public/sky/
+apps/web/public/dem/
 # Large binary formats anywhere in the repo
 *.tif
 *.tiff

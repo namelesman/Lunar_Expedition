@@ -17,7 +17,7 @@ export function makeCustomSite(lat: number, lon: number): Site {
     lat: la,
     lon: lo,
     description:
-      "User-defined point. Sun and Earth geometry is exact; the horizon is a smooth sphere because no terrain mask was precomputed for this point.",
+      "User-defined point. Sun and Earth geometry is exact; the terrain horizon is computed in your browser from NASA LOLA elevation data.",
     source: "https://svs.gsfc.nasa.gov/4720",
   };
 }

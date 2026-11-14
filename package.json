@@ -18,6 +18,7 @@
     "lint": "npm run lint --workspaces --if-present",
     "check": "npm run typecheck && npm run test && npm run build",
     "data:horizons": "npm run horizons -w @lunar/scripts",
+    "data:dem-tiles": "npm run dem-tiles -w @lunar/scripts --",
     "data:fixtures": "npm run fixtures -w @lunar/scripts",
     "glb:optimize": "npm run glb:optimize -w @lunar/scripts --",
     "assets:stage": "npm run assets:stage -w @lunar/scripts",

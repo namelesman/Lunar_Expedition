@@ -13,7 +13,8 @@
     "fixtures": "tsx src/make-test-fixtures.ts",
     "typecheck": "tsc --noEmit",
     "sky:textures": "node --max-old-space-size=6000 --import tsx src/make-sky-textures.ts",
-    "assets:stage": "tsx src/stage-assets.ts"
+    "assets:stage": "tsx src/stage-assets.ts",
+    "dem-tiles": "node --max-old-space-size=6000 --import tsx src/dem-tiles.ts"
   },
   "dependencies": {
     "@gltf-transform/core": "^4.5.1",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@types/node": "^24",
+    "esbuild": "^0.28.2",
     "tsx": "^4.20.0",
     "typescript": "~5.9.3"
   }

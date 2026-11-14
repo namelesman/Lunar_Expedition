@@ -3,6 +3,7 @@
 import type { Site } from "@lunar/core";
 import { create } from "zustand";
 import type { ModelQuality } from "./svsGlb";
+import type { TerrainState } from "./terrainHorizon";
 
 export const MAX_COMPARE = 3;
 /** Length of the analysis window (one lunar synodic month ≈ 29.5 d). */
@@ -38,6 +39,8 @@ export interface AppState {
   bodyScale: BodyScale;
   /** Camera preset that frames the Sun or the Earth just past the lunar limb. */
   viewRequest: { body: SkyBody; n: number } | null;
+  /** Terrain horizons computed in the browser for custom points, by site id. */
+  terrain: Record<string, TerrainState>;
 
   setSites: (sites: Site[]) => void;
   addCustomSite: (site: Site) => void;
@@ -54,6 +57,9 @@ export interface AppState {
   setLighting: (l: "sun" | "flat") => void;
   setBodyScale: (b: BodyScale) => void;
   flyToBody: (body: SkyBody) => void;
+  setTerrain: (siteId: string, state: TerrainState) => void;
+  /** Forget a failed terrain horizon so it is computed again. */
+  retryTerrain: (siteId: string) => void;
 }
 
 export const useApp = create<AppState>((set) => ({
@@ -70,6 +76,7 @@ export const useApp = create<AppState>((set) => ({
   flyRequest: 0,
   bodyScale: "real",
   viewRequest: null,
+  terrain: {},
 
   setSites: (sites) => set({ sites }),
   addCustomSite: (site) =>
@@ -106,4 +113,12 @@ export const useApp = create<AppState>((set) => ({
   setBodyScale: (bodyScale) => set({ bodyScale }),
   flyToBody: (body) =>
     set((s) => ({ viewRequest: { body, n: (s.viewRequest?.n ?? 0) + 1 } })),
+  setTerrain: (siteId, state) =>
+    set((s) => ({ terrain: { ...s.terrain, [siteId]: state } })),
+  retryTerrain: (siteId) =>
+    set((s) => {
+      const terrain = { ...s.terrain };
+      delete terrain[siteId];
+      return { terrain };
+    }),
 }));

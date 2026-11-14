@@ -21,7 +21,7 @@ const DAY_MS = 86_400_000;
 
 let horizonsPromise: Promise<Record<string, HorizonMask>> | null = null;
 
-/** Terrain horizon masks for the curated sites (scripts/horizons.py → public/data/horizons.json). */
+/** Terrain horizon masks for the curated sites (scripts/src/horizons.ts → public/data/horizons.json). */
 export function useHorizons(): Record<string, HorizonMask> | null {
   const [data, setData] = useState<Record<string, HorizonMask> | null>(null);
   useEffect(() => {
@@ -98,7 +98,12 @@ export function useSiteAnalysis(site: Site | undefined): SiteAnalysis | null {
   const horizons = useHorizons();
   const series = useSkySeries();
   const timeMs = useApp((s) => s.timeMs);
-  const mask = site ? (horizons?.[site.id] ?? null) : null;
+  // Custom points: the horizon computed in the browser once it is ready.
+  const terrain = useApp((s) => (site ? s.terrain[site.id] : undefined));
+  const mask = site
+    ? (horizons?.[site.id] ??
+      (terrain?.status === "ready" ? terrain.mask : null))
+    : null;
   const conditions = useMemo(
     () =>
       site && horizons
