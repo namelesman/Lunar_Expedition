@@ -11,7 +11,7 @@ import { MOON_MODELS } from "@/lib/svsGlb";
 import { CameraRig } from "./CameraRig";
 import { FallbackMoon, ModelErrorBoundary } from "./FallbackMoon";
 import { MoonModel } from "./MoonModel";
-import { SiteMarkers } from "./SiteMarkers";
+import { MarkerLayer, MarkerProjector } from "./SiteMarkers";
 
 const START = latLonToVector3(-30, 10, 3.4);
 
@@ -24,11 +24,19 @@ export interface MoonSceneProps {
   onCapabilities?: (maxTextureSize: number) => void;
 }
 
-export default function MoonScene({ sunDirection, onPickSurface, onCapabilities }: MoonSceneProps) {
+export default function MoonScene({
+  sunDirection,
+  onPickSurface,
+  onCapabilities,
+}: MoonSceneProps) {
   const exaggeration = useApp((s) => s.exaggeration);
   const quality = useApp((s) => s.quality);
+  const lighting = useApp((s) => s.lighting);
   const sun = useMemo(
-    () => new THREE.Vector3(sunDirection.x, sunDirection.y, sunDirection.z).normalize().multiplyScalar(20),
+    () =>
+      new THREE.Vector3(sunDirection.x, sunDirection.y, sunDirection.z)
+        .normalize()
+        .multiplyScalar(20),
     [sunDirection.x, sunDirection.y, sunDirection.z],
   );
 
@@ -39,36 +47,62 @@ export default function MoonScene({ sunDirection, onPickSurface, onCapabilities 
   };
 
   return (
-    <Canvas
-      camera={{ position: [START.x, START.y, START.z], fov: 45, near: 0.01, far: 100 }}
-      dpr={[1, 2]}
-      gl={{ antialias: true, logarithmicDepthBuffer: false }}
-      onCreated={({ gl }) => onCapabilities?.(gl.capabilities.maxTextureSize)}
-    >
-      <color attach="background" args={["#000000"]} />
-      <Stars radius={40} depth={20} count={5000} factor={2.2} saturation={0} fade speed={0} />
-      {/* Faint fill so the night side is not pure black (earthshine-like). */}
-      <ambientLight intensity={0.035} />
-      <directionalLight position={sun} intensity={3.2} />
-      <ModelErrorBoundary
-        fallback={
-          <Suspense fallback={<LoadingSphere />}>
-            <FallbackMoon />
-          </Suspense>
-        }
+    <div className="relative h-full w-full">
+      <Canvas
+        camera={{
+          position: [START.x, START.y, START.z],
+          fov: 45,
+          near: 0.01,
+          far: 100,
+        }}
+        dpr={[1, 2]}
+        gl={{ antialias: true, logarithmicDepthBuffer: false }}
+        onCreated={({ gl }) => onCapabilities?.(gl.capabilities.maxTextureSize)}
       >
-        <Suspense fallback={<LoadingSphere />}>
-          <MoonModel url={assetUrl(MOON_MODELS[quality].file)} exaggeration={exaggeration} />
-        </Suspense>
-      </ModelErrorBoundary>
-      {/* Invisible analytic sphere for picking (the real mesh is shader-displaced). */}
-      <mesh onDoubleClick={onDoubleClick}>
-        <sphereGeometry args={[1, 96, 48]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
-      </mesh>
-      <SiteMarkers />
-      <CameraRig exaggeration={exaggeration} />
-    </Canvas>
+        <color attach="background" args={["#000000"]} />
+        <Stars
+          radius={40}
+          depth={20}
+          count={5000}
+          factor={2.2}
+          saturation={0}
+          fade
+          speed={0}
+        />
+        {/* Earthshine-like fill keeps the night side readable; "flat" lights everything evenly. */}
+        <ambientLight intensity={lighting === "flat" ? 2.2 : 0.18} />
+        {lighting === "sun" && (
+          <directionalLight position={sun} intensity={3.2} />
+        )}
+        <ModelErrorBoundary
+          fallback={
+            <Suspense fallback={<LoadingSphere />}>
+              <FallbackMoon />
+            </Suspense>
+          }
+        >
+          <Suspense fallback={<LoadingSphere />}>
+            <MoonModel
+              url={assetUrl(MOON_MODELS[quality].file)}
+              exaggeration={exaggeration}
+            />
+          </Suspense>
+        </ModelErrorBoundary>
+        {/* Invisible analytic sphere for picking (the real mesh is shader-displaced). */}
+        <mesh onDoubleClick={onDoubleClick}>
+          <sphereGeometry args={[1, 96, 48]} />
+          <meshBasicMaterial
+            transparent
+            opacity={0}
+            depthWrite={false}
+            colorWrite={false}
+          />
+        </mesh>
+        <MarkerProjector />
+        <CameraRig exaggeration={exaggeration} />
+      </Canvas>
+      <MarkerLayer />
+    </div>
   );
 }
 

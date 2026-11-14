@@ -45,11 +45,7 @@ export type SiteCategory =
   | "custom";
 
 export type SiteStatus =
-  | "landed"
-  | "crashed"
-  | "planned"
-  | "candidate"
-  | "custom";
+  "landed" | "crashed" | "planned" | "candidate" | "custom";
 
 export interface Site extends LatLon {
   /** kebab-case, unique, stable (used in URLs and data file names). */
@@ -70,6 +66,8 @@ export interface Site extends LatLon {
    * must have `todo: true` and be hidden from the default list.
    */
   source: string;
+  /** Surface elevation (m, relative to 1737.4 km) when the source states it. */
+  elevationM?: number;
   /** Free-text note about precision / reference frame of the coordinates. */
   coordinateNote?: string;
   /** True when the coordinates still need an official source. */
@@ -254,4 +252,7 @@ export interface Route {
 
 export type RouteResult =
   | { ok: true; route: Route }
-  | { ok: false; reason: "blocked-start" | "blocked-goal" | "no-path" | "out-of-grid" };
+  | {
+      ok: false;
+      reason: "blocked-start" | "blocked-goal" | "no-path" | "out-of-grid";
+    };
