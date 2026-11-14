@@ -79,7 +79,7 @@ export function App({ initialSites }: { initialSites: Site[] }) {
       </aside>
 
       <section
-        className={`absolute right-3 top-40 bottom-28 w-[26rem] max-w-[calc(100vw-1.5rem)] max-md:left-3 max-md:top-auto max-md:w-auto ${
+        className={`absolute right-3 top-56 bottom-28 w-[26rem] max-w-[calc(100vw-1.5rem)] max-md:left-3 max-md:top-auto max-md:w-auto ${
           selectedId ? "max-md:h-[55dvh]" : ""
         }`}
       >
