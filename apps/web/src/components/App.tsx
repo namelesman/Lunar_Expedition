@@ -4,6 +4,7 @@ import { earthIlluminatedFraction, moonSkyState, type Site } from "@lunar/core";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { useApp } from "@/lib/store";
+import { useTerrainHorizonJobs } from "@/lib/terrainHorizon";
 import { ComparePanel } from "./ui/ComparePanel";
 import { Credits } from "./ui/Credits";
 import { CustomSiteForm, makeCustomSite } from "./ui/CustomSiteForm";
@@ -30,6 +31,7 @@ export function App({ initialSites }: { initialSites: Site[] }) {
   // Light follows the real Sun; recompute at most once per simulated 10 min.
   const timeBucket = useApp((s) => Math.floor(s.timeMs / 600_000));
   const [showCompare, setShowCompare] = useState(false);
+  useTerrainHorizonJobs();
 
   useEffect(() => setSites(initialSites), [initialSites, setSites]);
 

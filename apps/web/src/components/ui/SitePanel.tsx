@@ -3,6 +3,7 @@
 import { useSiteAnalysis } from "@/lib/conditions";
 import { fmtLatLon } from "@/lib/format";
 import { MAX_COMPARE, useApp } from "@/lib/store";
+import type { TerrainState } from "@/lib/terrainHorizon";
 import { SkyView } from "../charts/SkyView";
 import { WindowTimeline } from "../charts/WindowTimeline";
 import { Metrics, NowCards } from "./NowCards";
@@ -16,6 +17,9 @@ export function SitePanel() {
   const timeMs = useApp((s) => s.timeMs);
   const site = sites.find((s) => s.id === selectedId);
   const a = useSiteAnalysis(site);
+  const terrain = useApp((s) => (site ? s.terrain[site.id] : undefined));
+  const retryTerrain = useApp((s) => s.retryTerrain);
+  const browserHorizon = site?.category === "custom" && terrain?.status === "ready";
 
   if (!site) {
     return (
@@ -86,11 +90,18 @@ export function SitePanel() {
                 Local sky (looking around 360°)
               </h3>
               <SkyView a={a} />
-              {!a.mask && (
-                <p className="mt-1 text-[10px] text-amber-300/80">
-                  No terrain data for this point: horizon = smooth sphere.
-                  Results may be optimistic near mountains and craters.
-                </p>
+              {site.category === "custom" ? (
+                <TerrainNotice
+                  terrain={terrain}
+                  onRetry={() => retryTerrain(site.id)}
+                />
+              ) : (
+                !a.mask && (
+                  <p className="mt-1 text-[10px] text-amber-300/80">
+                    No terrain data for this point: horizon = smooth sphere.
+                    Results may be optimistic near mountains and craters.
+                  </p>
+                )
               )}
             </section>
             <section>
@@ -115,12 +126,63 @@ export function SitePanel() {
               </a>
               {site.coordinateNote ? ` — ${site.coordinateNote}` : ""}
               {a.mask
-                ? ` Horizon: ${a.mask.demSource}, observer ${a.mask.observerHeightM} m above ground, up to ${a.mask.maxDistanceKm} km.`
+                ? ` Horizon: ${browserHorizon ? "Terrain horizon computed in your browser from LOLA (NASA): " : ""}${a.mask.demSource}, observer ${a.mask.observerHeightM} m above ground, up to ${a.mask.maxDistanceKm} km.`
                 : ""}
             </p>
           </>
         )}
       </div>
     </div>
+  );
+}
+
+/** Status of the browser-computed terrain horizon of a custom point. */
+function TerrainNotice({
+  terrain,
+  onRetry,
+}: {
+  terrain: TerrainState | undefined;
+  onRetry: () => void;
+}) {
+  if (!terrain || terrain.status === "computing") {
+    const t = terrain?.status === "computing" ? terrain : null;
+    return (
+      <p
+        className="mt-1 text-[10px] text-sky-300/90"
+        role="status"
+        aria-live="polite"
+      >
+        Computing terrain horizon from LOLA…{" "}
+        {t && t.total > 0
+          ? `${t.done}/${t.total} tiles · ${(t.bytes / 1e6).toFixed(1)} MB`
+          : "finding tiles"}
+        . Until it is ready the horizon is a smooth sphere.
+      </p>
+    );
+  }
+  if (terrain.status === "failed") {
+    return (
+      <p className="mt-1 text-[10px] text-amber-300/80" role="status">
+        Terrain data unavailable ({terrain.reason}): horizon = smooth sphere.
+        Results may be optimistic near mountains and craters.{" "}
+        <button
+          type="button"
+          onClick={onRetry}
+          className="underline hover:text-amber-200"
+        >
+          Retry
+        </button>
+      </p>
+    );
+  }
+  const { stats } = terrain;
+  return (
+    <p className="mt-1 text-[10px] text-emerald-300/80" role="status">
+      Terrain horizon computed in your browser from LOLA (NASA):{" "}
+      {stats.fetched > 0
+        ? `${(stats.bytes / 1e6).toFixed(1)} MB downloaded`
+        : "terrain already in memory"}
+      , {(terrain.ms / 1000).toFixed(1)} s.
+    </p>
   );
 }

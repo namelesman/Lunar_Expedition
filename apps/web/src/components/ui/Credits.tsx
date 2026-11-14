@@ -31,6 +31,15 @@ export function Credits() {
       <span aria-hidden>·</span>
       <a
         className="underline hover:text-neutral-200"
+        href="https://pds-geosciences.wustl.edu/missions/lro/lola.htm"
+        target="_blank"
+        rel="noreferrer"
+      >
+        LOLA polar DEMs (PDS)
+      </a>
+      <span aria-hidden>·</span>
+      <a
+        className="underline hover:text-neutral-200"
         href="https://svs.gsfc.nasa.gov/4720"
         target="_blank"
         rel="noreferrer"
