@@ -22,7 +22,8 @@ interface Flight {
   toUp: THREE.Vector3;
 }
 
-const v = (p: { x: number; y: number; z: number }) => new THREE.Vector3(p.x, p.y, p.z);
+const v = (p: { x: number; y: number; z: number }) =>
+  new THREE.Vector3(p.x, p.y, p.z);
 
 /**
  * Free 360° camera: TrackballControls (no polar lock — the camera can pass over
@@ -64,10 +65,14 @@ export function CameraRig({ exaggeration }: { exaggeration: number }) {
       f.t = Math.min(1, f.t + dt / FLY_SECONDS);
       const e = f.t < 0.5 ? 4 * f.t ** 3 : 1 - (-2 * f.t + 2) ** 3 / 2; // easeInOutCubic
       const q = new THREE.Quaternion().setFromUnitVectors(f.fromDir, f.toDir);
-      const dir = f.fromDir.clone().applyQuaternion(new THREE.Quaternion().slerp(q, e));
+      const dir = f.fromDir
+        .clone()
+        .applyQuaternion(new THREE.Quaternion().slerp(q, e));
       // Rise a bit mid-flight for long hops so the arc stays outside the Moon.
       const hop = f.fromDir.angleTo(f.toDir) / Math.PI;
-      const dist = THREE.MathUtils.lerp(f.fromDist, f.toDist, e) + hop * 0.8 * Math.sin(Math.PI * e);
+      const dist =
+        THREE.MathUtils.lerp(f.fromDist, f.toDist, e) +
+        hop * 0.8 * Math.sin(Math.PI * e);
       camera.position.copy(dir.multiplyScalar(dist));
       camera.up.copy(f.fromUp.clone().lerp(f.toUp, e).normalize());
       camera.lookAt(0, 0, 0);

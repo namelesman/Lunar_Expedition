@@ -12,7 +12,9 @@ import * as THREE from "three";
  */
 export function FallbackMoon() {
   const map = useTexture("/textures/lroc_color_2k.jpg", (t) => {
-    (Array.isArray(t) ? t : [t]).forEach((tex) => (tex.colorSpace = THREE.SRGBColorSpace));
+    (Array.isArray(t) ? t : [t]).forEach(
+      (tex) => (tex.colorSpace = THREE.SRGBColorSpace),
+    );
   });
   return (
     <mesh rotation-y={-Math.PI / 2}>
@@ -22,7 +24,10 @@ export function FallbackMoon() {
   );
 }
 
-export class ModelErrorBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+export class ModelErrorBoundary extends Component<
+  { fallback: ReactNode; children: ReactNode },
+  { failed: boolean }
+> {
   state = { failed: false };
   static getDerivedStateFromError() {
     return { failed: true };

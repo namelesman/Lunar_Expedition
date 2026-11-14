@@ -16,7 +16,13 @@ import { SVS_GLB_FIT } from "@/lib/svsGlb";
  * the user's exaggeration: r = 1 + k · h / 1737.4 km (k = 1 is real relief).
  * Normals are re-tilted by k / 1.7 so crater shading follows the exaggeration.
  */
-export function MoonModel({ url, exaggeration }: { url: string; exaggeration: number }) {
+export function MoonModel({
+  url,
+  exaggeration,
+}: {
+  url: string;
+  exaggeration: number;
+}) {
   const gltf = useGLTF(url, false, true);
 
   const { mesh } = useMemo(() => {
@@ -46,7 +52,11 @@ export function MoonModel({ url, exaggeration }: { url: string; exaggeration: nu
       uUnitsPerKm: { value: SVS_GLB_FIT.unitsPerKm },
       uBakedExag: { value: SVS_GLB_FIT.bakedExaggeration },
     };
-    const material = new THREE.MeshStandardMaterial({ map, roughness: 1, metalness: 0 });
+    const material = new THREE.MeshStandardMaterial({
+      map,
+      roughness: 1,
+      metalness: 0,
+    });
     material.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, uniforms);
       shader.vertexShader = shader.vertexShader
