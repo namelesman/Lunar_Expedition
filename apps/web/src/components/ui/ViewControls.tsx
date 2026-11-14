@@ -1,0 +1,47 @@
+"use client";
+
+import { useApp } from "@/lib/store";
+import { MOON_MODELS, type ModelQuality } from "@/lib/svsGlb";
+
+export function ViewControls() {
+  const exaggeration = useApp((s) => s.exaggeration);
+  const setExaggeration = useApp((s) => s.setExaggeration);
+  const quality = useApp((s) => s.quality);
+  const setQuality = useApp((s) => s.setQuality);
+
+  return (
+    <div className="pointer-events-auto flex flex-col gap-2 rounded-lg border border-white/10 bg-black/60 p-3 text-xs backdrop-blur">
+      <label className="flex items-center gap-2">
+        <span className="w-28 text-neutral-300">Vertical exaggeration</span>
+        <input
+          type="range"
+          min={0}
+          max={20}
+          step={0.5}
+          value={exaggeration}
+          onChange={(e) => setExaggeration(Number(e.target.value))}
+          className="w-28 accent-sky-400"
+          aria-label="Vertical exaggeration"
+        />
+        <span className="w-14 text-right font-mono text-sm text-neutral-100" aria-live="polite">
+          {exaggeration.toFixed(1)}×
+        </span>
+      </label>
+      <p className="text-[10px] text-neutral-500">1× = real LOLA relief</p>
+      <label className="flex items-center gap-2">
+        <span className="w-28 text-neutral-300">Model quality</span>
+        <select
+          value={quality}
+          onChange={(e) => setQuality(e.target.value as ModelQuality)}
+          className="rounded border border-white/10 bg-neutral-900 px-1 py-0.5"
+        >
+          {(Object.keys(MOON_MODELS) as ModelQuality[]).map((q) => (
+            <option key={q} value={q}>
+              {q === "high" ? "High" : "Lite"} — {MOON_MODELS[q].label}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+}
