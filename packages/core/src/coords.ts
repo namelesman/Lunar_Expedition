@@ -57,7 +57,7 @@ export function uvToLatLon(u: number, v: number): LatLon {
 /**
  * The NASA SVS GLB (Moon_NASA_LRO_8k_Topo.glb) puts lon 0 on +X and 90°E on
  * −Z (north +Y). Rotating it by this angle about +Y aligns it with our frame.
- * Verified by scripts/node/analyze-glb.mjs and the unit tests.
+ * Verified by scripts/src/analyze-glb.ts and the unit tests.
  */
 export const SVS_GLB_ROTATION_Y = -Math.PI / 2;
 

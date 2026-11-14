@@ -1,0 +1,30 @@
+{
+  "name": "@lunar/scripts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Offline data pipeline (Node + TypeScript): NASA GLB optimization, horizon masks, terrain grids, test fixtures",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "glb:analyze": "tsx src/analyze-glb.ts",
+    "glb:optimize": "node --max-old-space-size=12000 --import tsx src/optimize-glb.ts",
+    "glb:fit": "tsx src/fit-glb-scale.ts",
+    "horizons": "tsx src/horizons.ts",
+    "fixtures": "tsx src/make-test-fixtures.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/extensions": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
+    "@lunar/core": "*",
+    "geotiff": "^2.1.3",
+    "meshoptimizer": "^1.3.0",
+    "sharp": "^0.35.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "tsx": "^4.20.0",
+    "typescript": "~5.9.3"
+  }
+}

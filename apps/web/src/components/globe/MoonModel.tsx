@@ -9,7 +9,7 @@ import { SVS_GLB_FIT } from "@/lib/svsGlb";
 
 /**
  * NASA SVS "Moon_NASA_LRO_8k_Topo" model (LROC color + LOLA relief), web-optimized
- * by scripts/node/optimize-glb.mjs.
+ * by scripts/src/optimize-glb.ts.
  *
  * The vertex shader undoes the model's baked ≈1.7× relief and slightly prolate
  * base shape (see lib/svsGlb.ts) and rebuilds the surface on a unit sphere with

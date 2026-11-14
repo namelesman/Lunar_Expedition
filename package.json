@@ -6,7 +6,8 @@
   "license": "Apache-2.0",
   "workspaces": [
     "packages/*",
-    "apps/*"
+    "apps/*",
+    "scripts"
   ],
   "scripts": {
     "dev": "npm run dev -w @lunar/web",
@@ -15,9 +16,15 @@
     "test": "npm run test -w @lunar/core",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
-    "check": "npm run typecheck && npm run test && npm run build"
+    "check": "npm run typecheck && npm run test && npm run build",
+    "data:horizons": "npm run horizons -w @lunar/scripts",
+    "data:fixtures": "npm run fixtures -w @lunar/scripts",
+    "glb:optimize": "npm run glb:optimize -w @lunar/scripts --"
   },
   "engines": {
     "node": ">=22"
+  },
+  "allowScripts": {
+    "sharp": true
   }
 }
