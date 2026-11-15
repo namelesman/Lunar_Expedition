@@ -1,22 +1,34 @@
 "use client";
 
 /**
- * Terrain horizons for custom points, computed in the browser: a Web Worker
- * downloads the LOLA DEM tiles around the point from the assets host and runs
- * the same horizonMask as the offline pipeline (packages/core/src/terrain.ts).
- * On any failure or after 15 s the point keeps the smooth-sphere horizon and
- * the panel says so; the app never depends on it.
+ * Terrain computed in the browser from the LOLA DEM tiles on the assets host,
+ * in a Web Worker (src/workers/terrainHorizon.worker.ts):
+ *  - the terrain horizon of custom points: the same horizonMask as the
+ *    offline pipeline (packages/core/src/terrain.ts). On any failure or after
+ *    15 s the point keeps the smooth-sphere horizon and the panel says so; the
+ *    app never depends on it.
+ *  - on demand, the horizons of every cell of the 20 × 20 km sunlight /
+ *    Earth-visibility map around a site (packages/core/src/illumination.ts).
  */
-import type { HorizonMask, Site, TiledHorizonStats } from "@lunar/core";
+import type {
+  CellHorizons,
+  HorizonMask,
+  Site,
+  TiledHorizonStats,
+  TiledIlluminationStats,
+} from "@lunar/core";
 import { useEffect } from "react";
 import { assetUrl } from "./assets";
 import { useApp } from "./store";
 
 export const TERRAIN_TIMEOUT_MS = 15_000;
 
+type JobKind = "horizon" | "illum";
+
 export type TerrainRequest =
   | {
       type: "compute";
+      kind: JobKind;
       jobId: number;
       siteId: string;
       lat: number;
@@ -26,9 +38,26 @@ export type TerrainRequest =
     }
   | { type: "abort"; jobId: number };
 
+/** "tiles": download; "grid": resampling the DEM; "horizons": the cell marches (rows). */
+export type TerrainPhase = "tiles" | "grid" | "horizons";
+
+export interface TerrainProgress {
+  phase: TerrainPhase;
+  done: number;
+  total: number;
+  /** Compressed bytes downloaded so far. */
+  bytes: number;
+}
+
 export type TerrainResponse =
-  | { type: "progress"; jobId: number; done: number; total: number; bytes: number }
+  | ({ type: "progress"; jobId: number } & TerrainProgress)
   | { type: "done"; jobId: number; mask: HorizonMask; stats: TiledHorizonStats }
+  | {
+      type: "illum-done";
+      jobId: number;
+      horizons: CellHorizons;
+      stats: TiledIlluminationStats;
+    }
   | { type: "error"; jobId: number; message: string };
 
 export type TerrainState =
@@ -36,10 +65,22 @@ export type TerrainState =
   | { status: "ready"; mask: HorizonMask; stats: TiledHorizonStats; ms: number }
   | { status: "failed"; reason: string };
 
+export type IlluminationState =
+  | ({ status: "computing" } & TerrainProgress)
+  | {
+      status: "ready";
+      horizons: CellHorizons;
+      stats: TiledIlluminationStats;
+      ms: number;
+    }
+  | { status: "failed"; reason: string };
+
+type Done = Exclude<TerrainResponse, { type: "progress" } | { type: "error" }>;
+
 interface Job {
-  resolve: (r: { mask: HorizonMask; stats: TiledHorizonStats }) => void;
+  resolve: (r: Done) => void;
   reject: (e: Error) => void;
-  onProgress: (done: number, total: number, bytes: number) => void;
+  onProgress: (p: TerrainProgress) => void;
 }
 
 let worker: Worker | null = null;
@@ -56,11 +97,11 @@ function getWorker(): Worker {
     const msg = e.data;
     const job = jobs.get(msg.jobId);
     if (!job) return;
-    if (msg.type === "progress") job.onProgress(msg.done, msg.total, msg.bytes);
+    if (msg.type === "progress") job.onProgress(msg);
     else {
       jobs.delete(msg.jobId);
-      if (msg.type === "done") job.resolve(msg);
-      else job.reject(new Error(msg.message));
+      if (msg.type === "error") job.reject(new Error(msg.message));
+      else job.resolve(msg);
     }
   };
   w.onerror = (e) => {
@@ -75,11 +116,13 @@ function getWorker(): Worker {
   return w;
 }
 
-/** Terrain horizon of a point; rejects on any error or after TERRAIN_TIMEOUT_MS. */
-export function computeTerrainHorizon(
+/** Runs one worker job; rejects on any error or after `timeoutMs` (if given). */
+function runJob(
+  kind: JobKind,
   site: Pick<Site, "id" | "lat" | "lon">,
-  onProgress: Job["onProgress"],
-): Promise<{ mask: HorizonMask; stats: TiledHorizonStats }> {
+  onProgress: (p: TerrainProgress) => void,
+  timeoutMs: number | null,
+): Promise<Done> {
   return new Promise((resolve, reject) => {
     let w: Worker;
     try {
@@ -91,11 +134,14 @@ export function computeTerrainHorizon(
       return;
     }
     const jobId = nextJobId++;
-    const timer = setTimeout(() => {
-      jobs.delete(jobId);
-      w.postMessage({ type: "abort", jobId } satisfies TerrainRequest);
-      reject(new Error(`no answer within ${TERRAIN_TIMEOUT_MS / 1000} s`));
-    }, TERRAIN_TIMEOUT_MS);
+    const timer =
+      timeoutMs === null
+        ? undefined
+        : setTimeout(() => {
+            jobs.delete(jobId);
+            w.postMessage({ type: "abort", jobId } satisfies TerrainRequest);
+            reject(new Error(`no answer within ${timeoutMs / 1000} s`));
+          }, timeoutMs);
     jobs.set(jobId, {
       onProgress,
       resolve: (r) => {
@@ -109,6 +155,7 @@ export function computeTerrainHorizon(
     });
     w.postMessage({
       type: "compute",
+      kind,
       jobId,
       siteId: site.id,
       lat: site.lat,
@@ -116,6 +163,64 @@ export function computeTerrainHorizon(
       baseUrl: new URL(assetUrl("dem/"), window.location.href).href,
     } satisfies TerrainRequest);
   });
+}
+
+/** Terrain horizon of a point; rejects on any error or after TERRAIN_TIMEOUT_MS. */
+export async function computeTerrainHorizon(
+  site: Pick<Site, "id" | "lat" | "lon">,
+  onProgress: (done: number, total: number, bytes: number) => void,
+): Promise<{ mask: HorizonMask; stats: TiledHorizonStats }> {
+  const r = await runJob(
+    "horizon",
+    site,
+    (p) => onProgress(p.done, p.total, p.bytes),
+    TERRAIN_TIMEOUT_MS,
+  );
+  if (r.type !== "done") throw new Error("unexpected worker answer");
+  return r;
+}
+
+/** Cell horizons of the sunlight / Earth-visibility map around a site (on demand: no timeout). */
+export async function computeIlluminationHorizons(
+  site: Pick<Site, "id" | "lat" | "lon">,
+  onProgress: (p: TerrainProgress) => void,
+): Promise<{ horizons: CellHorizons; stats: TiledIlluminationStats }> {
+  const r = await runJob("illum", site, onProgress, null);
+  if (r.type !== "illum-done") throw new Error("unexpected worker answer");
+  return r;
+}
+
+/** Starts the map job of a site; its state lives in the store. */
+export function startIllumination(site: Pick<Site, "id" | "lat" | "lon">): void {
+  const { setIllumination } = useApp.getState();
+  const t0 = performance.now();
+  setIllumination(site.id, {
+    status: "computing",
+    phase: "tiles",
+    done: 0,
+    total: 0,
+    bytes: 0,
+  });
+  computeIlluminationHorizons(site, (p) =>
+    setIllumination(site.id, {
+      status: "computing",
+      phase: p.phase,
+      done: p.done,
+      total: p.total,
+      bytes: p.bytes,
+    }),
+  )
+    .then(({ horizons, stats }) => {
+      const ms = performance.now() - t0;
+      console.info(
+        `[illumination] ${site.id}: ${stats.fetched} tiles fetched (${(stats.bytes / 1e6).toFixed(2)} MB), ${stats.cached} cached, ${Math.round(ms)} ms total, ${Math.round(stats.computeMs)} ms horizons`,
+      );
+      setIllumination(site.id, { status: "ready", horizons, stats, ms });
+    })
+    .catch((e: Error) => {
+      console.warn(`[illumination] ${site.id}: ${e.message}`);
+      setIllumination(site.id, { status: "failed", reason: e.message });
+    });
 }
 
 /** Starts a terrain-horizon job for every custom point that has none yet. */

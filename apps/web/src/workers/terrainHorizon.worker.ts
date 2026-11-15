@@ -1,11 +1,21 @@
 /// <reference lib="webworker" />
 /**
- * Terrain horizon of a custom point, computed off the main thread from LOLA
- * DEM tiles (dem/manifest.json on the assets host, made by
- * scripts/src/dem-tiles.ts). Tiles stay in memory for nearby points.
+ * Terrain computed off the main thread from LOLA DEM tiles (dem/manifest.json
+ * on the assets host, made by scripts/src/dem-tiles.ts): the horizon of a
+ * custom point, or the cell horizons of the sunlight map around a site. Tiles
+ * stay in memory for nearby points.
  */
-import { computeTiledHorizon, TileStore, type DemManifest } from "@lunar/core";
-import type { TerrainRequest, TerrainResponse } from "../lib/terrainHorizon";
+import {
+  computeTiledHorizon,
+  computeTiledIllumination,
+  TileStore,
+  type DemManifest,
+} from "@lunar/core";
+import type {
+  TerrainPhase,
+  TerrainRequest,
+  TerrainResponse,
+} from "../lib/terrainHorizon";
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -16,8 +26,8 @@ let manifest: { base: string; p: Promise<DemManifest> } | null = null;
 const stores = new Map<string, TileStore>();
 const jobs = new Map<number, AbortController>();
 
-function post(msg: TerrainResponse): void {
-  self.postMessage(msg);
+function post(msg: TerrainResponse, transfer: Transferable[] = []): void {
+  self.postMessage(msg, transfer);
 }
 
 function getManifest(base: string, signal: AbortSignal): Promise<DemManifest> {
@@ -47,6 +57,9 @@ async function compute(
 ): Promise<void> {
   const ctrl = new AbortController();
   jobs.set(req.jobId, ctrl);
+  let bytes = 0;
+  const progress = (phase: TerrainPhase, done: number, total: number) =>
+    post({ type: "progress", jobId: req.jobId, phase, done, total, bytes });
   try {
     const m = await getManifest(req.baseUrl, ctrl.signal);
     if (jobs.size === 1) {
@@ -54,7 +67,7 @@ async function compute(
       for (const s of stores.values()) held += s.bytes;
       if (held > CACHE_LIMIT_BYTES) stores.clear();
     }
-    const { mask, stats } = await computeTiledHorizon({
+    const options = {
       manifest: m,
       stores,
       siteId: req.siteId,
@@ -64,9 +77,11 @@ async function compute(
       // Small polar tiles: latency-bound, HTTP/2 multiplexes them.
       concurrency: 16,
       now: () => performance.now(),
-      onProgress: (done, total, bytes) =>
-        post({ type: "progress", jobId: req.jobId, done, total, bytes }),
-      fetchTile: async (path) => {
+      onProgress: (done: number, total: number, b: number) => {
+        bytes = b;
+        progress("tiles", done, total);
+      },
+      fetchTile: async (path: string) => {
         const res = await fetch(`${req.baseUrl}${path}`, {
           signal: ctrl.signal,
         });
@@ -76,8 +91,24 @@ async function compute(
         const raw = buf[0] === 0x1f && buf[1] === 0x8b ? await gunzip(buf) : buf;
         return { raw, bytes: buf.byteLength };
       },
-    });
-    post({ type: "done", jobId: req.jobId, mask, stats });
+    };
+    if (req.kind === "horizon") {
+      const { mask, stats } = await computeTiledHorizon(options);
+      post({ type: "done", jobId: req.jobId, mask, stats });
+    } else {
+      const { horizons, stats } = await computeTiledIllumination({
+        ...options,
+        onCompute: (phase, done, total) => progress(phase, done, total),
+      });
+      post({ type: "illum-done", jobId: req.jobId, horizons, stats }, [
+        horizons.horizonDeg.buffer,
+        horizons.cellLat.buffer,
+        horizons.cellLon.buffer,
+        horizons.gridNorthDeg.buffer,
+        horizons.cellElevationM.buffer,
+        horizons.relief.heightM.buffer,
+      ]);
+    }
   } catch (e) {
     post({
       type: "error",

@@ -4,3 +4,4 @@ export * from "./ephemeris";
 export * from "./conditions";
 export * from "./terrain";
 export * from "./demTiles";
+export * from "./illumination";
