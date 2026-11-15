@@ -23,7 +23,9 @@ coordinates. The app then shows:
 - how long until sunset or Earthset;
 - the power and direct-to-Earth windows for the next 30 days;
 - how they change over the next 12 lunations;
-- a 20 × 20 km map of the best-lit and best-connected spots nearby.
+- the solar energy a panel would receive;
+- a 20 × 20 km map of the best-lit and best-connected spots nearby, with a rover route to any of
+  them.
 
 Everything runs in the browser, needs no account, and is checked against JPL Horizons.
 
@@ -59,6 +61,16 @@ Everything runs in the browser, needs no account, and is checked against JPL Hor
   Earth, and also shows the shadows at the selected moment. At Shackleton the crater floor is in
   permanent shadow (0 %), while the rim, 10 km away, is sunlit 96 % of the time. Clicking a spot
   opens it as a new site.
+- **Rover routes.** From the site to any spot of that map, the app finds the cheapest drivable
+  path (A* over terrain points 100 m apart). Ground steeper than a slope limit (15° by default) is
+  impassable, and the route can prefer sunlit ground. It reports the distance, driving time, climb
+  and steepest slope, with an elevation profile. From IM-2, the best-lit spot 10 km west is
+  11.2 km away by a route that never exceeds 8°. From the Shackleton crater floor there is no route
+  out under 25°.
+- **Solar energy.** The app estimates the sunlight reaching 1 m² of panel over 30 days, from the
+  Sun's distance, the visible share of its disk and the panel's angle. At IM-2 a vertical panel
+  facing the Sun averages 726 W/m², but a flat one only 58 W/m², because the Sun stays low. At
+  Apollo 11 both average 437 W/m².
 - **Real sky.** The Sun and the Earth are drawn at their true directions and apparent sizes over
   NASA's star map, and the Earth shows its true phase.
 - **For every audience.** The app includes a help and glossary dialog, a phone layout, labelled
@@ -74,6 +86,9 @@ Everything runs in the browser, needs no account, and is checked against JPL Hor
   a Web Worker downloads only the terrain tiles it needs (about 2–4 MB) and runs the same horizon code
   in the browser. Tiling is lossless: the tiled path reproduces the precomputed horizons exactly.
   If tiles fail, the app falls back to a smooth sphere and says so.
+- **3D Moon.** The globe is NASA's LRO model (LROC colour, LOLA relief). Its mesh is distorted
+  near the poles, so poleward of 80° the browser rebuilds the relief from the LOLA polar DEMs
+  (about 950 m per point, 0.9 MB per pole).
 - **Stack.** TypeScript end to end:
   - Next.js and React Three Fiber (three.js) for the app and the 3D view;
   - a pure, tested core package;
