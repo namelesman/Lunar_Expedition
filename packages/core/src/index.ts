@@ -7,3 +7,4 @@ export * from "./demTiles";
 export * from "./illumination";
 export * from "./seasons";
 export * from "./energy";
+export * from "./polarPatch";

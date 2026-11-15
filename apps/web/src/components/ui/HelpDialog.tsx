@@ -146,6 +146,14 @@ export function HelpDialog() {
               pixel elsewhere. Features smaller than that are not seen.
             </li>
             <li>
+              The 3D Moon is NASA&apos;s LRO model; poleward of 80° its relief
+              is rebuilt in your browser from LOLA polar elevation models
+              (about 950 m per point), because the model&apos;s mesh is
+              distorted there. The 3D view shades the relief but casts no
+              shadows; the charts and the sunlight map do account for terrain
+              shadowing.
+            </li>
+            <li>
               Windows are sampled every 30 minutes (2 hours for the 12-lunation
               view). Landing-site coordinates come from the cited sources; a
               site without an official position is marked as such.

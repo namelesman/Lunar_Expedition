@@ -13,9 +13,12 @@
 import type {
   CellHorizons,
   HorizonMask,
+  Pole,
+  PolarPatchMesh,
   Site,
   TiledHorizonStats,
   TiledIlluminationStats,
+  TileLoadStats,
 } from "@lunar/core";
 import { useEffect } from "react";
 import { assetUrl } from "./assets";
@@ -34,6 +37,14 @@ export type TerrainRequest =
       lat: number;
       lon: number;
       /** Absolute URL of the DEM folder (ends with "/"). */
+      baseUrl: string;
+    }
+  | {
+      /** The 3D polar cap of one pole (see packages/core/src/polarPatch.ts). */
+      type: "polar-patch";
+      jobId: number;
+      pole: Pole;
+      stride: number;
       baseUrl: string;
     }
   | { type: "abort"; jobId: number };
@@ -57,6 +68,13 @@ export type TerrainResponse =
       jobId: number;
       horizons: CellHorizons;
       stats: TiledIlluminationStats;
+    }
+  | {
+      type: "patch-done";
+      jobId: number;
+      mesh: PolarPatchMesh;
+      stats: TileLoadStats;
+      computeMs: number;
     }
   | { type: "error"; jobId: number; message: string };
 
@@ -116,10 +134,32 @@ function getWorker(): Worker {
   return w;
 }
 
+const demBaseUrl = () => new URL(assetUrl("dem/"), window.location.href).href;
+
 /** Runs one worker job; rejects on any error or after `timeoutMs` (if given). */
 function runJob(
   kind: JobKind,
   site: Pick<Site, "id" | "lat" | "lon">,
+  onProgress: (p: TerrainProgress) => void,
+  timeoutMs: number | null,
+): Promise<Done> {
+  return postJob(
+    (jobId) => ({
+      type: "compute",
+      kind,
+      jobId,
+      siteId: site.id,
+      lat: site.lat,
+      lon: site.lon,
+      baseUrl: demBaseUrl(),
+    }),
+    onProgress,
+    timeoutMs,
+  );
+}
+
+function postJob(
+  request: (jobId: number) => Exclude<TerrainRequest, { type: "abort" }>,
   onProgress: (p: TerrainProgress) => void,
   timeoutMs: number | null,
 ): Promise<Done> {
@@ -153,16 +193,37 @@ function runJob(
         reject(e);
       },
     });
-    w.postMessage({
-      type: "compute",
-      kind,
-      jobId,
-      siteId: site.id,
-      lat: site.lat,
-      lon: site.lon,
-      baseUrl: new URL(assetUrl("dem/"), window.location.href).href,
-    } satisfies TerrainRequest);
+    w.postMessage(request(jobId) satisfies TerrainRequest);
   });
+}
+
+const patches = new Map<string, Promise<PolarPatchMesh>>();
+
+/**
+ * The 3D cap of a pole, built in the worker from the LOLA polar tiles
+ * (about 1 MB per pole at stride 1). Cached per pole and stride; a failure is
+ * not cached, so the next call retries.
+ */
+export function loadPolarPatch(pole: Pole, stride: number): Promise<PolarPatchMesh> {
+  const key = `${pole}:${stride}`;
+  let p = patches.get(key);
+  if (!p) {
+    const t0 = performance.now();
+    p = postJob(
+      (jobId) => ({ type: "polar-patch", jobId, pole, stride, baseUrl: demBaseUrl() }),
+      () => {},
+      60_000,
+    ).then((r) => {
+      if (r.type !== "patch-done") throw new Error("unexpected worker answer");
+      console.info(
+        `[polar cap] ${pole}: ${r.stats.fetched} tiles (${(r.stats.bytes / 1e6).toFixed(2)} MB), ${r.mesh.heightsM.length} vertices, ${r.mesh.index.length / 3} triangles, ${Math.round(r.computeMs)} ms mesh, ${Math.round(performance.now() - t0)} ms total`,
+      );
+      return r.mesh;
+    });
+    patches.set(key, p);
+    p.catch(() => patches.delete(key));
+  }
+  return p;
 }
 
 /** Terrain horizon of a point; rejects on any error or after TERRAIN_TIMEOUT_MS. */
