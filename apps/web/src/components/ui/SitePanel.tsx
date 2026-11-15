@@ -5,6 +5,7 @@ import { fmtLatLon } from "@/lib/format";
 import { MAX_COMPARE, useApp } from "@/lib/store";
 import type { TerrainState } from "@/lib/terrainHorizon";
 import { IlluminationMap } from "../charts/IlluminationMap";
+import { SeasonsChart } from "../charts/SeasonsChart";
 import { SkyView } from "../charts/SkyView";
 import { WindowTimeline } from "../charts/WindowTimeline";
 import { Metrics, NowCards } from "./NowCards";
@@ -110,6 +111,12 @@ export function SitePanel() {
                 Next 30 days
               </h3>
               <WindowTimeline a={a} />
+            </section>
+            <section>
+              <h3 className="mb-1 text-[11px] font-medium uppercase tracking-wider text-neutral-400">
+                Next 12 lunations
+              </h3>
+              <SeasonsChart a={a} />
             </section>
             <Metrics a={a} />
             <section>

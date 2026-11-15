@@ -143,6 +143,31 @@ host, cold cache):
 At Shackleton the map shows the floor of the crater in permanent shadow (0 %) and the rim lit up
 to 96 % of the window, 10 km from the centre. At Apollo 11 the mare is flat: 47–49 % everywhere.
 
+### Next 12 lunations (seasons)
+
+The site panel also charts the sunlit and Earth-visible share of each lunation, new Moon to new
+Moon, for the lunation of the analysis window and the 12 after it
+(`packages/core/src/seasons.ts`). It uses 2-hour samples against the same terrain horizon, about
+4,400 sky states, computed once in about 150 ms. Near the poles the Moon's 1.54° axial tilt makes a
+polar summer and winter, and libration moves the Earth by up to about 7°. A site that looks good
+in one 30-day window can therefore be poor six months later.
+
+Examples, starting from the November 2026 lunation:
+
+- IM-2 (Athena) is sunlit 36–53 % of the time depending on the lunation, with the Earth visible
+  74–84 %. Its longest night is 19 days.
+- Apollo 11 stays at 49–50 % sunlight, with the Earth always up.
+
+Click a column to move the 30-day analysis window to that lunation.
+
+Tests (`packages/core/test/seasons.test.ts`):
+
+- Lunations are contiguous synodic months; the new Moon of 2026-11-09 is found within 10 minutes.
+- An equatorial site is sunlit 46–54 % of every lunation, with nights of 14–15.5 days.
+- At 89.67°S the smooth-sphere sunlit share swings between more than 90 % and less than 10 % over
+  the year.
+- Every share equals `computeConditions` over the same samples.
+
 ## Data and credits
 
 - NASA's Scientific Visualization Studio — CGI Moon Kit and the LRO 8k topographic Moon model.
