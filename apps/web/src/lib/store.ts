@@ -45,6 +45,8 @@ export interface AppState {
   terrain: Record<string, TerrainState>;
   /** Sunlight / Earth-visibility maps around sites (computed on demand), by site id. */
   illumination: Record<string, IlluminationState>;
+  /** Help / glossary dialog. */
+  helpOpen: boolean;
 
   setSites: (sites: Site[]) => void;
   addCustomSite: (site: Site) => void;
@@ -65,6 +67,7 @@ export interface AppState {
   /** Forget a failed terrain horizon so it is computed again. */
   retryTerrain: (siteId: string) => void;
   setIllumination: (siteId: string, state: IlluminationState) => void;
+  setHelpOpen: (open: boolean) => void;
 }
 
 export const useApp = create<AppState>((set) => ({
@@ -83,6 +86,7 @@ export const useApp = create<AppState>((set) => ({
   viewRequest: null,
   terrain: {},
   illumination: {},
+  helpOpen: false,
 
   setSites: (sites) => set({ sites }),
   addCustomSite: (site) =>
@@ -137,4 +141,5 @@ export const useApp = create<AppState>((set) => ({
         delete illumination[id];
       return { illumination };
     }),
+  setHelpOpen: (helpOpen) => set({ helpOpen }),
 }));

@@ -13,7 +13,7 @@ const GROUPS: { key: Site["category"]; label: string }[] = [
   { key: "custom", label: "Your points" },
 ];
 
-export function SiteList() {
+export function SiteList({ onPick }: { onPick?: () => void } = {}) {
   const sites = useApp((s) => s.sites);
   const selectedId = useApp((s) => s.selectedId);
   const compareIds = useApp((s) => s.compareIds);
@@ -41,7 +41,10 @@ export function SiteList() {
                   <li key={s.id}>
                     <button
                       type="button"
-                      onClick={() => select(s.id)}
+                      onClick={() => {
+                        select(s.id);
+                        onPick?.();
+                      }}
                       className={`flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-white/5 ${
                         s.id === selectedId ? "bg-white/10" : ""
                       }`}
