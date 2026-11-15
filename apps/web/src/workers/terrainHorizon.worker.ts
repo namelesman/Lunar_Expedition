@@ -6,8 +6,12 @@
  * stay in memory for nearby points.
  */
 import {
+  buildPolarPatch,
   computeTiledHorizon,
   computeTiledIllumination,
+  loadTiles,
+  POLAR_PATCH_LAYERS,
+  polarPatchTiles,
   TileStore,
   type DemManifest,
 } from "@lunar/core";
@@ -52,6 +56,56 @@ async function gunzip(buf: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
+function tileFetcher(baseUrl: string, signal: AbortSignal) {
+  return async (path: string) => {
+    const res = await fetch(`${baseUrl}${path}`, { signal });
+    if (!res.ok) throw new Error(`DEM tile ${path}: HTTP ${res.status}`);
+    const buf = new Uint8Array(await res.arrayBuffer());
+    // gzip magic; a host that sent Content-Encoding: gzip already inflated it.
+    const raw = buf[0] === 0x1f && buf[1] === 0x8b ? await gunzip(buf) : buf;
+    return { raw, bytes: buf.byteLength };
+  };
+}
+
+async function polarPatch(
+  req: Extract<TerrainRequest, { type: "polar-patch" }>,
+): Promise<void> {
+  const ctrl = new AbortController();
+  jobs.set(req.jobId, ctrl);
+  try {
+    const m = await getManifest(req.baseUrl, ctrl.signal);
+    const stats = await loadTiles(
+      {
+        manifest: m,
+        stores,
+        signal: ctrl.signal,
+        concurrency: 16,
+        now: () => performance.now(),
+        fetchTile: tileFetcher(req.baseUrl, ctrl.signal),
+      },
+      polarPatchTiles(m, req.pole, req.stride),
+    );
+    const id = POLAR_PATCH_LAYERS[req.pole];
+    const spec = m.layers[id];
+    const store = stores.get(id);
+    if (spec.kind !== "polar-stereo" || !store) throw new Error(`${id}: not a polar layer`);
+    const t0 = performance.now();
+    const mesh = buildPolarPatch(spec, store, req.stride);
+    post(
+      { type: "patch-done", jobId: req.jobId, mesh, stats, computeMs: performance.now() - t0 },
+      [mesh.directions.buffer, mesh.heightsM.buffer, mesh.normals.buffer, mesh.index.buffer],
+    );
+  } catch (e) {
+    post({
+      type: "error",
+      jobId: req.jobId,
+      message: e instanceof Error ? e.message : String(e),
+    });
+  } finally {
+    jobs.delete(req.jobId);
+  }
+}
+
 async function compute(
   req: Extract<TerrainRequest, { type: "compute" }>,
 ): Promise<void> {
@@ -81,16 +135,7 @@ async function compute(
         bytes = b;
         progress("tiles", done, total);
       },
-      fetchTile: async (path: string) => {
-        const res = await fetch(`${req.baseUrl}${path}`, {
-          signal: ctrl.signal,
-        });
-        if (!res.ok) throw new Error(`DEM tile ${path}: HTTP ${res.status}`);
-        const buf = new Uint8Array(await res.arrayBuffer());
-        // gzip magic; a host that sent Content-Encoding: gzip already inflated it.
-        const raw = buf[0] === 0x1f && buf[1] === 0x8b ? await gunzip(buf) : buf;
-        return { raw, bytes: buf.byteLength };
-      },
+      fetchTile: tileFetcher(req.baseUrl, ctrl.signal),
     };
     if (req.kind === "horizon") {
       const { mask, stats } = await computeTiledHorizon(options);
@@ -123,5 +168,6 @@ async function compute(
 self.onmessage = (e: MessageEvent<TerrainRequest>) => {
   const req = e.data;
   if (req.type === "compute") void compute(req);
+  else if (req.type === "polar-patch") void polarPatch(req);
   else jobs.get(req.jobId)?.abort();
 };

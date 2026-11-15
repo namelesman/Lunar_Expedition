@@ -223,6 +223,32 @@ Tests (`packages/core/test/energy.test.ts`):
 - Near the pole, a vertical panel gets the sunlit share of the full flux and more than 10 times
   what a flat one gets.
 
+### Polar caps of the 3D Moon
+
+The NASA SVS model is a latitude/longitude mesh, simplified for the web, and near the poles it
+shows a radial fan of sliver triangles. Once the page has loaded, the browser rebuilds both polar
+caps from the LOLA polar DEM tiles already on the assets host
+(`packages/core/src/polarPatch.ts`, built in the terrain worker):
+
+- south of 80°S from `polar-s-960m` (LDEM_75S_120M averaged to 960 m), north of 80°N from
+  `ldem-16-n`;
+- one vertex per DEM pixel (every second pixel with the lite model): about 410,000 vertices per
+  cap, from 31 tiles (about 0.9 MB) in under 1 s;
+- the model's own colour map, sampled per fragment from latitude and longitude;
+- the same vertical exaggeration as the model.
+
+The model is hidden poleward of 80.4°, and the caps reach 80.0°. In the thin ring where both are
+drawn, the depth test hides any step between the two surfaces. If the tiles fail to load, the
+model is shown whole, as before.
+
+Tests (`packages/core/test/polarPatch.test.ts`) check:
+
+- the tile selection;
+- unit directions and LOLA heights, with outward normals on flat ground;
+- normals that tilt down a synthetic slope;
+- triangles wound outward;
+- a hard error on a missing pixel.
+
 ## Data and credits
 
 - NASA's Scientific Visualization Studio — CGI Moon Kit and the LRO 8k topographic Moon model.

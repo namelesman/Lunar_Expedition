@@ -116,6 +116,7 @@ export default function MoonScene({
             <MoonModel
               url={assetUrl(MOON_MODELS[quality].file)}
               exaggeration={exaggeration}
+              patchStride={quality === "high" ? 1 : 2}
             />
           </Suspense>
         </ModelErrorBoundary>
