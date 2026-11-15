@@ -8,7 +8,7 @@
  * full raster, so heights are bit-identical; pixels on a tile edge simply read
  * the neighbouring tile.
  */
-import type { HorizonMask } from "./types";
+import type { HorizonMask, LatLon } from "./types";
 import {
   EquirectDem,
   forEachHorizonSample,
@@ -199,20 +199,20 @@ export function layerDem(spec: DemLayerSpec, pixels: PixelSource): LayerDem {
     : new PolarStereoDem(spec.name, spec, pixels);
 }
 
+/** Visits one DEM sample of a computation; `near` picks the near or the far stack. */
+export type DemSampleVisitor = (p: LatLon, near: boolean) => void;
+
 /**
- * Tiles each layer needs for the terrain horizon at lat/lon. Exact: a dry run
- * of the horizon march (forEachHorizonSample) that, for every sample, picks the
- * first layer of the near/far stack covering it — as LayeredDem will — and
- * collects the tiles of its bilinear footprint. Longitude convergence near the
- * poles and the polar stereographic geometry come out of the same code path
- * that samples the terrain, and a coarse layer is not fetched where a finer one
- * already covers the samples.
+ * Tiles each layer needs for a computation, from a dry run of its samples:
+ * for every sample, the first layer of the near/far stack that covers it — as
+ * LayeredDem will pick — and the tiles of that layer's bilinear footprint.
+ * Longitude convergence near the poles and the polar stereographic geometry
+ * come out of the same code path that samples the terrain, and a coarse layer
+ * is not fetched where a finer one already covers the samples.
  */
-export function requiredTiles(
+export function collectTiles(
   manifest: DemManifest,
-  lat: number,
-  lon: number,
-  maxKm = HORIZON_MAX_KM,
+  forEachSample: (visit: DemSampleVisitor) => void,
 ): Map<string, Set<number>> {
   const zero: PixelSource = { pixel: () => 0 };
   const out = new Map<string, Set<number>>();
@@ -228,39 +228,54 @@ export function requiredTiles(
     });
   const near = stack(manifest.near);
   const far = stack(manifest.far);
-  const nearM = HORIZON_NEAR_KM * 1000,
-    maxM = maxKm * 1000;
-  const visitPoint = (p: { lat: number; lon: number }, d: number) => {
-    if (d > maxM) return;
-    for (const l of d <= nearM ? near : far) {
+  forEachSample((p, useNear) => {
+    for (const l of useNear ? near : far) {
       if (l.dem.footprint(p.lat, p.lon, l.visit)) return;
     }
-  };
-  visitPoint({ lat, lon }, 0); // the site's own elevation
-  forEachHorizonSample(lat, lon, visitPoint);
+  });
   for (const [id, s] of out) if (s.size === 0) out.delete(id);
   return out;
 }
 
-export interface TiledHorizonStats {
-  /** Tiles the site needs, per layer id. */
+/**
+ * Tiles each layer needs for the terrain horizon at lat/lon: a dry run of the
+ * horizon march (forEachHorizonSample), see collectTiles.
+ */
+export function requiredTiles(
+  manifest: DemManifest,
+  lat: number,
+  lon: number,
+  maxKm = HORIZON_MAX_KM,
+): Map<string, Set<number>> {
+  const nearM = HORIZON_NEAR_KM * 1000,
+    maxM = maxKm * 1000;
+  return collectTiles(manifest, (visit) => {
+    visit({ lat, lon }, true); // the site's own elevation
+    forEachHorizonSample(lat, lon, (p, d) => {
+      if (d <= maxM) visit(p, d <= nearM);
+    });
+  });
+}
+
+export interface TileLoadStats {
+  /** Tiles the computation needs, per layer id. */
   tilesByLayer: Record<string, number>;
-  /** Tiles downloaded for this site (the rest were already in memory). */
+  /** Tiles downloaded for it (the rest were already in memory). */
   fetched: number;
   cached: number;
   /** Bytes transferred for the fetched tiles (compressed). */
   bytes: number;
   fetchMs: number;
+}
+
+export interface TiledHorizonStats extends TileLoadStats {
   computeMs: number;
 }
 
-export interface TiledHorizonOptions {
+export interface TileLoadOptions {
   manifest: DemManifest;
-  /** Tile stores by layer id; reused across sites (tile cache). */
+  /** Tile stores by layer id; reused across computations (tile cache). */
   stores: Map<string, TileStore>;
-  siteId: string;
-  lat: number;
-  lon: number;
   /** Returns the gunzipped tile bytes and the number of bytes transferred. */
   fetchTile: (path: string) => Promise<{ raw: Uint8Array; bytes: number }>;
   concurrency?: number;
@@ -269,17 +284,19 @@ export interface TiledHorizonOptions {
   now?: () => number;
 }
 
-/**
- * Terrain horizon of a site from DEM tiles: finds the tiles, loads the missing
- * ones, then runs horizonMask on the layered near/far DEMs. Throws if any tile
- * fails or if the march reads a pixel that is not loaded.
- */
-export async function computeTiledHorizon(
-  o: TiledHorizonOptions,
-): Promise<{ mask: HorizonMask; stats: TiledHorizonStats }> {
+export interface TiledHorizonOptions extends TileLoadOptions {
+  siteId: string;
+  lat: number;
+  lon: number;
+}
+
+/** Downloads and decodes the tiles of `need` that are not in `o.stores` yet. */
+export async function loadTiles(
+  o: TileLoadOptions,
+  need: Map<string, Set<number>>,
+): Promise<TileLoadStats> {
   const now = o.now ?? (() => Date.now());
   const t0 = now();
-  const need = requiredTiles(o.manifest, o.lat, o.lon);
   const queue: { spec: DemLayerSpec; store: TileStore; index: number }[] = [];
   const tilesByLayer: Record<string, number> = {};
   let cached = 0;
@@ -314,42 +331,59 @@ export async function computeTiledHorizon(
   await Promise.all(
     Array.from({ length: Math.min(o.concurrency ?? 8, total) }, worker),
   );
-  const t1 = now();
+  return { tilesByLayer, fetched: total, cached, bytes, fetchMs: now() - t0 };
+}
 
+/**
+ * Near/far LayeredDems over the loaded tiles (only the layers in `need`), and
+ * a check that counts pixel reads outside the loaded tiles.
+ */
+export function tiledDems(
+  manifest: DemManifest,
+  stores: Map<string, TileStore>,
+  need: Map<string, Set<number>>,
+): { near: LayeredDem; far: LayeredDem; missing: () => number } {
   const dems = (ids: string[]) =>
     new LayeredDem(
       ids
         .filter((id) => need.has(id))
         .map((id) => {
-          const store = o.stores.get(id)!;
+          const store = stores.get(id)!;
           store.missing = 0;
-          return layerDem(o.manifest.layers[id], store);
+          return layerDem(manifest.layers[id], store);
         }),
     );
-  const near = dems(o.manifest.near);
-  const far = dems(o.manifest.far);
+  const near = dems(manifest.near);
+  const far = dems(manifest.far);
   const sameStack =
     near.layers.length === far.layers.length &&
     near.layers.every((l, i) => l.name === far.layers[i].name);
-  const mask = horizonMask(
-    { near, far: sameStack ? near : far },
-    o.siteId,
-    o.lat,
-    o.lon,
-  );
-  let missing = 0;
-  for (const id of need.keys()) missing += o.stores.get(id)!.missing;
-  if (missing > 0)
-    throw new Error(`horizon read ${missing} pixels outside the loaded tiles`);
   return {
-    mask,
-    stats: {
-      tilesByLayer,
-      fetched: total,
-      cached,
-      bytes,
-      fetchMs: t1 - t0,
-      computeMs: now() - t1,
+    near,
+    far: sameStack ? near : far,
+    missing: () => {
+      let n = 0;
+      for (const id of need.keys()) n += stores.get(id)!.missing;
+      return n;
     },
   };
+}
+
+/**
+ * Terrain horizon of a site from DEM tiles: finds the tiles, loads the missing
+ * ones, then runs horizonMask on the layered near/far DEMs. Throws if any tile
+ * fails or if the march reads a pixel that is not loaded.
+ */
+export async function computeTiledHorizon(
+  o: TiledHorizonOptions,
+): Promise<{ mask: HorizonMask; stats: TiledHorizonStats }> {
+  const now = o.now ?? (() => Date.now());
+  const need = requiredTiles(o.manifest, o.lat, o.lon);
+  const load = await loadTiles(o, need);
+  const t1 = now();
+  const { near, far, missing } = tiledDems(o.manifest, o.stores, need);
+  const mask = horizonMask({ near, far }, o.siteId, o.lat, o.lon);
+  const m = missing();
+  if (m > 0) throw new Error(`horizon read ${m} pixels outside the loaded tiles`);
+  return { mask, stats: { ...load, computeMs: now() - t1 } };
 }

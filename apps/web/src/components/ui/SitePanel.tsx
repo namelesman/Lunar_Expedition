@@ -4,6 +4,7 @@ import { useSiteAnalysis } from "@/lib/conditions";
 import { fmtLatLon } from "@/lib/format";
 import { MAX_COMPARE, useApp } from "@/lib/store";
 import type { TerrainState } from "@/lib/terrainHorizon";
+import { IlluminationMap } from "../charts/IlluminationMap";
 import { SkyView } from "../charts/SkyView";
 import { WindowTimeline } from "../charts/WindowTimeline";
 import { Metrics, NowCards } from "./NowCards";
@@ -111,6 +112,12 @@ export function SitePanel() {
               <WindowTimeline a={a} />
             </section>
             <Metrics a={a} />
+            <section>
+              <h3 className="mb-1 text-[11px] font-medium uppercase tracking-wider text-neutral-400">
+                Sunlight &amp; Earth view around the site (20 × 20 km)
+              </h3>
+              <IlluminationMap site={site} />
+            </section>
             <p className="text-[11px] leading-relaxed text-neutral-400">
               {site.description}
             </p>

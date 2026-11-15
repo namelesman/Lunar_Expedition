@@ -3,7 +3,7 @@
 import type { Site } from "@lunar/core";
 import { create } from "zustand";
 import type { ModelQuality } from "./svsGlb";
-import type { TerrainState } from "./terrainHorizon";
+import type { IlluminationState, TerrainState } from "./terrainHorizon";
 
 export const MAX_COMPARE = 3;
 /** Length of the analysis window (one lunar synodic month ≈ 29.5 d). */
@@ -16,6 +16,8 @@ export type BodyScale = "real" | "enlarged";
 export type SkyBody = "earth" | "sun";
 /** Enlargement factor of the "not to scale" Sun/Earth mode. */
 export const ENLARGED_BODY_SCALE = 4;
+/** Sunlight maps kept in memory (≈ 1.5 MB each). */
+const MAX_ILLUMINATION_MAPS = 4;
 
 export interface AppState {
   sites: Site[];
@@ -41,6 +43,8 @@ export interface AppState {
   viewRequest: { body: SkyBody; n: number } | null;
   /** Terrain horizons computed in the browser for custom points, by site id. */
   terrain: Record<string, TerrainState>;
+  /** Sunlight / Earth-visibility maps around sites (computed on demand), by site id. */
+  illumination: Record<string, IlluminationState>;
 
   setSites: (sites: Site[]) => void;
   addCustomSite: (site: Site) => void;
@@ -60,6 +64,7 @@ export interface AppState {
   setTerrain: (siteId: string, state: TerrainState) => void;
   /** Forget a failed terrain horizon so it is computed again. */
   retryTerrain: (siteId: string) => void;
+  setIllumination: (siteId: string, state: IlluminationState) => void;
 }
 
 export const useApp = create<AppState>((set) => ({
@@ -77,6 +82,7 @@ export const useApp = create<AppState>((set) => ({
   bodyScale: "real",
   viewRequest: null,
   terrain: {},
+  illumination: {},
 
   setSites: (sites) => set({ sites }),
   addCustomSite: (site) =>
@@ -120,5 +126,15 @@ export const useApp = create<AppState>((set) => ({
       const terrain = { ...s.terrain };
       delete terrain[siteId];
       return { terrain };
+    }),
+  setIllumination: (siteId, state) =>
+    set((s) => {
+      const illumination = { ...s.illumination };
+      delete illumination[siteId];
+      illumination[siteId] = state; // most recent last
+      const ids = Object.keys(illumination);
+      for (const id of ids.slice(0, Math.max(0, ids.length - MAX_ILLUMINATION_MAPS)))
+        delete illumination[id];
+      return { illumination };
     }),
 }));

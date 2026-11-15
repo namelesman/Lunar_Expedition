@@ -99,6 +99,50 @@ Measured in the browser (Chromium, cold cache, tiles from the production assets 
 
 Tiles stay in the worker's memory, so a nearby second point downloads little or nothing.
 
+### Sunlight and Earth-visibility map around a site (on demand, in your browser)
+
+The site panel can map the 20 × 20 km around any site, so a planner can see whether a better-lit or
+better-connected spot sits a few kilometres away. The button starts a job in the same Web Worker
+(`packages/core/src/illumination.ts`):
+
+1. It downloads the LOLA tiles for two local grids in an azimuthal-equidistant projection centred on
+   the site: ±60 km at 100 m (near field) and ±310 km at 1 km (far field). It uses the same layer
+   stacks as the horizon above.
+2. It computes the terrain horizon of each of the 41 × 41 cells (every 500 m) at 180 azimuths. Each
+   cell is marched to 300 km with the same observer height (2 m) and exact curvature as
+   `horizonMask`.
+3. On the main thread, it counts the 30-minute samples of the current 30-day window during which
+   the centre of the Sun, and of the Earth, is above each cell's horizon. This is the same criterion
+   as the panel's "sunlit" and "Earth visible" shares. Moving the window recomputes this step
+   instantly, with no new download.
+
+Layers: **Sun · 30 days**, **Earth · 30 days**, and **Shadows now** (lit or shadowed at the selected
+time; play the clock to watch the shadows move). Relief shading sits underneath. You can hover any
+cell for its values, and click a cell (or a row of the "best spots" table) to open it as a custom
+point with its own full analysis.
+
+Validation (`packages/core/test/illumination.test.ts`, synthetic terrain, and
+`packages/core/test/demTiles.test.ts`, real tiles):
+
+- On synthetic hills and pits (south polar and equatorial), every tested cell's horizon matches
+  `horizonMask` run at that cell's own coordinates within 0.3°. The tested cells are the centre,
+  the corners, and cells off the axes; near the pole this includes grid convergence.
+- A cell's sunlit and Earth-visible shares equal `computeConditions` with that cell's horizon,
+  within 3 of 1441 samples.
+- With real tiles, the centre cell's horizon matches the site horizon computed by the browser
+  path within 0.012° (Apollo 11) and 0.154° (Shackleton).
+
+Measured (Node for the computation, headless Chromium for the download from the production assets
+host, cold cache):
+
+| Site | Downloaded | Tiles | Horizons of 1,681 cells |
+| --- | --- | --- | --- |
+| Apollo 11 (0.67°N 23.47°E) | 2.2 MB | 8 | 2.7 s |
+| Shackleton (89.67°S 129.78°E) | 4.5 MB | 175 | 3.1 s |
+
+At Shackleton the map shows the floor of the crater in permanent shadow (0 %) and the rim lit up
+to 96 % of the window, 10 km from the centre. At Apollo 11 the mare is flat: 47–49 % everywhere.
+
 ## Data and credits
 
 - NASA's Scientific Visualization Studio — CGI Moon Kit and the LRO 8k topographic Moon model.

@@ -12,7 +12,10 @@ import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import {
+  cellHorizonMask,
   computeTiledHorizon,
+  computeTiledIllumination,
+  horizonElevationAt,
   TileStore,
   type DemManifest,
   type HorizonMask,
@@ -128,4 +131,42 @@ describe.skipIf(!haveTiles)("terrain horizon from DEM tiles", () => {
     );
     for (const c of checks) c();
   }, 120_000);
+
+  it("illumination map: the centre cell's horizon matches the site horizon (< 0.5°)", async () => {
+    const { manifest, sites } = load();
+    const rows: string[] = [];
+    const checks: (() => void)[] = [];
+    for (const s of sites.filter((x) =>
+      ["apollo-11", "shackleton-crater"].includes(x.id),
+    )) {
+      // Fresh cache: the download of a site whose horizon is not loaded yet.
+      const stores = new Map<string, TileStore>();
+      const t0 = performance.now();
+      const { horizons, stats } = await computeTiledIllumination({
+        manifest,
+        stores,
+        siteId: s.id,
+        lat: s.lat,
+        lon: s.lon,
+        fetchTile,
+      });
+      const ms = performance.now() - t0;
+      const { mask } = await run(manifest, stores, s);
+      const m = (horizons.n - 1) / 2;
+      const cell = cellHorizonMask(horizons, m, m);
+      let max = 0;
+      cell.elevationsDeg.forEach((e, k) => {
+        max = Math.max(
+          max,
+          Math.abs(e - horizonElevationAt(mask, k * cell.azimuthStepDeg)),
+        );
+      });
+      rows.push(
+        `${s.id.padEnd(18)} ${stats.fetched} tiles, ${(stats.bytes / 1e6).toFixed(2)} MB, ${Math.round(stats.computeMs)} ms compute, ${Math.round(ms)} ms total | centre vs site horizon: max ${max.toFixed(3)}°`,
+      );
+      checks.push(() => expect(max).toBeLessThan(0.5));
+    }
+    console.log(["illumination map (Node, local tiles):", ...rows].join("\n"));
+    for (const c of checks) c();
+  }, 180_000);
 });
