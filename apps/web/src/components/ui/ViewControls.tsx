@@ -16,7 +16,7 @@ export function ViewControls() {
 
   return (
     <div className="pointer-events-auto flex flex-col gap-2 rounded-lg border border-white/10 bg-black/60 p-3 text-xs backdrop-blur">
-      <label className="flex items-center gap-2">
+      <label className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="w-28 text-neutral-300">Vertical exaggeration</span>
         <input
           type="range"
@@ -36,7 +36,7 @@ export function ViewControls() {
         </span>
       </label>
       <p className="text-[10px] text-neutral-500">1× = real LOLA relief</p>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="w-28 text-neutral-300">Lighting</span>
         <div className="flex overflow-hidden rounded border border-white/10">
           {(["sun", "flat"] as const).map((l) => (
@@ -51,7 +51,7 @@ export function ViewControls() {
           ))}
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="w-28 text-neutral-300">Sun &amp; Earth size</span>
         <div className="flex overflow-hidden rounded border border-white/10">
           {(["real", "enlarged"] as const).map((b) => (
@@ -67,7 +67,7 @@ export function ViewControls() {
           ))}
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="w-28 text-neutral-300">Look toward</span>
         <div className="flex gap-1">
           <button
@@ -86,7 +86,7 @@ export function ViewControls() {
           </button>
         </div>
       </div>
-      <label className="flex items-center gap-2">
+      <label className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="w-28 text-neutral-300">Model quality</span>
         <select
           value={quality}

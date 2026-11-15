@@ -1,70 +1,52 @@
+"use client";
+
+import { useApp } from "@/lib/store";
+
+const LINKS: [string, string][] = [
+  ["https://svs.gsfc.nasa.gov/14959", "NASA's Scientific Visualization Studio"],
+  ["https://www.lroc.asu.edu/", "LRO LROC (NASA/GSFC/ASU)"],
+  ["https://lola.gsfc.nasa.gov/", "LRO LOLA (NASA/GSFC)"],
+  ["https://svs.gsfc.nasa.gov/4851", "Deep Star Maps 2020"],
+  [
+    "https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/",
+    "Blue Marble",
+  ],
+];
+
+/** One line of data credits; the full list (CGI Moon Kit, LOLA polar DEMs, JPL Horizons) is in Help. */
 export function Credits() {
+  const setHelpOpen = useApp((s) => s.setHelpOpen);
   return (
-    <footer className="pointer-events-auto absolute bottom-0 left-0 right-0 flex flex-wrap items-center gap-x-3 gap-y-1 bg-gradient-to-t from-black/80 to-transparent px-4 pb-2 pt-6 text-[11px] text-neutral-400">
-      <span>Data:</span>
-      <a
+    <footer className="pointer-events-auto absolute bottom-0 left-0 right-0 flex items-center gap-x-3 overflow-hidden whitespace-nowrap bg-gradient-to-t from-black/80 to-transparent px-4 pb-2 pt-6 text-[11px] text-neutral-400 max-md:px-2 max-md:pb-1 max-md:pt-2">
+      <span className="max-md:hidden">Data:</span>
+      {LINKS.map(([href, label], i) => (
+        <span key={href} className="flex items-center gap-x-3 max-lg:hidden">
+          {i > 0 && <span aria-hidden>·</span>}
+          <a
+            className="underline hover:text-neutral-200"
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {label}
+          </a>
+        </span>
+      ))}
+      <span aria-hidden className="max-lg:hidden">
+        ·
+      </span>
+      <button
+        type="button"
+        onClick={() => setHelpOpen(true)}
         className="underline hover:text-neutral-200"
-        href="https://svs.gsfc.nasa.gov/14959"
-        target="_blank"
-        rel="noreferrer"
       >
-        NASA&apos;s Scientific Visualization Studio
-      </a>
-      <span aria-hidden>·</span>
-      <a
-        className="underline hover:text-neutral-200"
-        href="https://www.lroc.asu.edu/"
-        target="_blank"
-        rel="noreferrer"
-      >
-        LRO LROC (NASA/GSFC/ASU)
-      </a>
-      <span aria-hidden>·</span>
-      <a
-        className="underline hover:text-neutral-200"
-        href="https://lola.gsfc.nasa.gov/"
-        target="_blank"
-        rel="noreferrer"
-      >
-        LRO LOLA (NASA/GSFC)
-      </a>
-      <span aria-hidden>·</span>
-      <a
-        className="underline hover:text-neutral-200"
-        href="https://pds-geosciences.wustl.edu/missions/lro/lola.htm"
-        target="_blank"
-        rel="noreferrer"
-      >
-        LOLA polar DEMs (PDS)
-      </a>
-      <span aria-hidden>·</span>
-      <a
-        className="underline hover:text-neutral-200"
-        href="https://svs.gsfc.nasa.gov/4720"
-        target="_blank"
-        rel="noreferrer"
-      >
-        CGI Moon Kit
-      </a>
-      <span aria-hidden>·</span>
-      <a
-        className="underline hover:text-neutral-200"
-        href="https://svs.gsfc.nasa.gov/4851"
-        target="_blank"
-        rel="noreferrer"
-      >
-        Deep Star Maps 2020 (NASA SVS)
-      </a>
-      <span aria-hidden>·</span>
-      <a
-        className="underline hover:text-neutral-200"
-        href="https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/"
-        target="_blank"
-        rel="noreferrer"
-      >
-        Blue Marble (NASA Earth Observatory)
-      </a>
-      <span className="ml-auto">NASA Space Apps Challenge 2026 · Recife</span>
+        <span className="lg:hidden">Data: NASA (SVS, LRO LOLA &amp; LROC) — </span>
+        all credits
+      </button>
+      <span className="ml-auto">
+        <span className="max-md:hidden">NASA Space Apps Challenge 2026 · Recife</span>
+        <span className="md:hidden">Space Apps 2026</span>
+      </span>
     </footer>
   );
 }

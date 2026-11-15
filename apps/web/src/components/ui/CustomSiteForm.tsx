@@ -23,7 +23,7 @@ export function makeCustomSite(lat: number, lon: number): Site {
 }
 
 /** Enter any lunar coordinates (planetocentric, east-positive), or double-click the globe. */
-export function CustomSiteForm() {
+export function CustomSiteForm({ onAdded }: { onAdded?: () => void } = {}) {
   const addCustomSite = useApp((s) => s.addCustomSite);
   const [lat, setLat] = useState("-89.45");
   const [lon, setLon] = useState("-137.31");
@@ -40,7 +40,9 @@ export function CustomSiteForm() {
       className="flex flex-col gap-1.5 border-t border-white/10 p-3 text-xs"
       onSubmit={(e) => {
         e.preventDefault();
-        if (valid) addCustomSite(makeCustomSite(la, lo));
+        if (!valid) return;
+        addCustomSite(makeCustomSite(la, lo));
+        onAdded?.();
       }}
     >
       <span className="text-[11px] font-medium uppercase tracking-wider text-neutral-400">
