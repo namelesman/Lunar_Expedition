@@ -8,3 +8,4 @@ export * from "./illumination";
 export * from "./seasons";
 export * from "./energy";
 export * from "./polarPatch";
+export * from "./route";
