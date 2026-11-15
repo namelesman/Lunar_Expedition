@@ -4,22 +4,50 @@ NASA Space Apps Challenge 2026 — challenge
 [*Lunar Landing Site Navigator*](https://www.spaceappschallenge.org/2026/challenges/lunar-landing-site-navigator/).
 Team from Recife, Brazil.
 
-A web app to compare lunar landing sites and dates in seconds: where the **Sun** and the **Earth**
-are relative to the **real terrain horizon** at each site, how long until sunset / Earthset, and the
-power and direct-to-Earth communication windows over the coming weeks — on a real-time 3D Moon built
-from NASA LRO data.
+**Live app: <https://lunar-expedition.vercel.app>**. The submission text (summary, use of AI,
+NASA data) is in [`docs/submission.md`](docs/submission.md).
 
-> Work in progress (hackathon, 14–15 Nov 2026). See [`docs/challenge.md`](docs/challenge.md) for the
-> official objectives and how each one maps to the app.
+A web app to compare lunar landing sites and dates in seconds. For each site it shows:
+
+- where the **Sun** and the **Earth** are relative to the **real terrain horizon**;
+- how long until sunset and Earthset;
+- the power and direct-to-Earth communication windows over the coming weeks.
+
+All of it sits on a real-time 3D Moon built from NASA LRO data.
+
+## Features
+
+- **Sites:** 15 curated landing sites (Apollo, CLPS, other agencies, Shackleton), each with its
+  official source, plus any custom coordinates. A double-click on the Moon adds a point too.
+- **Sun and Earth vs the terrain horizon:** a LOLA horizon at 720 azimuths, up to 300 km.
+  - Current elevation and visible share of each disk.
+  - Countdown to sunset or sunrise, and to Earthset or Earthrise.
+  - A 360° local-sky panorama with the 30-day tracks.
+- **Next 30 days:** sunlight, Earth-visibility and both-at-once windows, the Sun's elevation vs the
+  terrain, the longest night and the longest communication gap.
+- **Next 12 lunations:** polar seasons and libration, lunation by lunation.
+- **Sunlight and Earth-visibility map** of the 20 × 20 km around a site, computed in your browser:
+  - best-spot table;
+  - "shadows now" view;
+  - click a spot to open it as a new site.
+- **Compare** up to three sites side by side.
+- **Time controls:** pick any date and time, or play the month.
+- **Real sky:** the Sun and Earth at their true positions and sizes, the Earth's phase, and the
+  NASA star map.
+- **Help and glossary**, phone layout, no account, no cookies, no analytics.
+
+See [`docs/challenge.md`](docs/challenge.md) for the official objectives and how each one maps to
+the app.
 
 ## Repository layout
 
 ```
-apps/web/        Next.js (App Router) + TypeScript — UI, 3D globe, /api routes
-packages/core/   Pure, tested logic: shared types, lat/lon → 3D, Sun/Earth geometry, horizon, A*
-scripts/         Node + TypeScript data pipeline (GLB optimization, horizon masks, terrain grids, fixtures)
+apps/web/        Next.js (App Router) + TypeScript: UI, 3D globe, Web Worker for terrain (static, no server code)
+packages/core/   Pure, tested logic: types, coordinates, Sun/Earth ephemeris, terrain horizons, DEM tiles,
+                 sunlight map, lunations
+scripts/         Node + TypeScript data pipeline (GLB optimization, horizon masks, DEM tiles, sky textures)
 data/            sites.json (curated landing sites with official sources)
-docs/            Challenge summary and design notes
+docs/            Challenge summary and submission text
 ```
 
 Raw NASA files (TIFF/EXR/GLB) and generated tiles are **never committed**; the scripts in
