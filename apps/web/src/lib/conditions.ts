@@ -4,11 +4,13 @@ import {
   computeConditions,
   longestGapMs,
   skySeries,
+  solarEnergy,
   sunInfo,
   transitionFromSamples,
   type HorizonMask,
   type Site,
   type SiteConditions,
+  type SolarEnergy,
   type SunInfo,
   type Transition,
 } from "@lunar/core";
@@ -60,6 +62,8 @@ export interface SiteAnalysis {
   nextEarth: Transition | null;
   longestNightMs: number;
   longestCommsGapMs: number;
+  /** Sunlight reaching a panel over the 30-day window (before cell efficiency). */
+  energy: SolarEnergy;
 }
 
 export function analyzeSite(
@@ -90,6 +94,7 @@ export function analyzeSite(
     ),
     longestNightMs: longestGapMs(c.sunWindows, c.startMs, c.endMs),
     longestCommsGapMs: longestGapMs(c.earthWindows, c.startMs, c.endMs),
+    energy: solarEnergy(c, series),
   };
 }
 

@@ -26,6 +26,8 @@ All of it sits on a real-time 3D Moon built from NASA LRO data.
 - **Next 30 days:** sunlight, Earth-visibility and both-at-once windows, the Sun's elevation vs the
   terrain, the longest night and the longest communication gap.
 - **Next 12 lunations:** polar seasons and libration, lunation by lunation.
+- **Solar energy at a panel:** mean W/m² and kWh/m² over 30 days, for a vertical panel facing the
+  Sun and for a flat one.
 - **Sunlight and Earth-visibility map** of the 20 × 20 km around a site, computed in your browser:
   - best-spot table;
   - "shadows now" view;
@@ -195,6 +197,31 @@ Tests (`packages/core/test/seasons.test.ts`):
 - At 89.67°S the smooth-sphere sunlit share swings between more than 90 % and less than 10 % over
   the year.
 - Every share equals `computeConditions` over the same samples.
+
+### Solar energy at a panel
+
+The site panel estimates the sunlight that reaches 1 m² of solar panel over the 30-day window
+(`packages/core/src/energy.ts`), before cell efficiency, dust or temperature:
+
+- irradiance = 1361 W/m² (total solar irradiance at 1 AU, Kopp & Lean 2011) × (1 AU / Sun
+  distance)², with no atmosphere to cross;
+- times the share of the Sun's disk above the terrain horizon;
+- times the cosine of the angle between the Sun and the panel's normal: cos(elevation) for a
+  vertical panel turned to face the Sun, sin(elevation) for a flat panel on level ground.
+
+Averages include the night. Examples for the window starting 2026-11-14:
+
+- IM-2 (84.8°S): 726 W/m² on a vertical panel but 58 W/m² on a flat one, because the Sun stays
+  low.
+- Apollo 11 (0.7°N): 437 W/m² on either panel, close to 1361 / π.
+- Shackleton crater floor: 0 W/m² (permanent shadow).
+
+Tests (`packages/core/test/energy.test.ts`):
+
+- The 1/r² scaling holds, and the Sun–Moon distance stays within 2 % of 1 AU.
+- At the equator, both panels average 1361 / π within 5 % over two lunations.
+- Near the pole, a vertical panel gets the sunlit share of the full flux and more than 10 times
+  what a flat one gets.
 
 ## Data and credits
 
