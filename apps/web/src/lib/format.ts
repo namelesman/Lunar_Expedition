@@ -33,6 +33,16 @@ export function fmtPct(f: number): string {
   return `${Math.round(f * 100)}%`;
 }
 
+/** Irradiance, W/m² (no decimals; thousands separated). */
+export function fmtWm2(v: number): string {
+  return `${Math.round(v).toLocaleString("en-US")} W/m²`;
+}
+
+/** Energy per m², from Wh/m² to kWh/m². */
+export function fmtKWhM2(wh: number): string {
+  return `${Math.round(wh / 1000).toLocaleString("en-US")} kWh/m²`;
+}
+
 export function fmtIn(ms: number): string {
   return formatDuration(ms);
 }

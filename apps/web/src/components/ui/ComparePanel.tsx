@@ -2,7 +2,7 @@
 
 import type { Site } from "@lunar/core";
 import { useSiteAnalysis } from "@/lib/conditions";
-import { fmtDeg, fmtIn, fmtLatLon, fmtPct } from "@/lib/format";
+import { fmtDeg, fmtIn, fmtLatLon, fmtPct, fmtWm2 } from "@/lib/format";
 import { useApp } from "@/lib/store";
 import { SkyView } from "../charts/SkyView";
 import { WindowTimeline } from "../charts/WindowTimeline";
@@ -77,6 +77,7 @@ function CompareColumn({ site }: { site: Site }) {
     ["Earth in view", fmtPct(c.earthVisibleFraction)],
     ["Longest night", fmtIn(a.longestNightMs)],
     ["Max Sun elev.", fmtDeg(c.maxSunElevationDeg)],
+    ["Solar, vertical panel", `${fmtWm2(a.energy.verticalMeanWm2)} avg`],
   ];
   return (
     <div className="min-w-0 rounded-md border border-white/10 bg-white/[0.02] p-2">

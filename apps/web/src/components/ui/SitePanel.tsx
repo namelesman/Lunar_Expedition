@@ -8,7 +8,7 @@ import { IlluminationMap } from "../charts/IlluminationMap";
 import { SeasonsChart } from "../charts/SeasonsChart";
 import { SkyView } from "../charts/SkyView";
 import { WindowTimeline } from "../charts/WindowTimeline";
-import { Metrics, NowCards } from "./NowCards";
+import { Metrics, NowCards, SolarEnergy } from "./NowCards";
 
 export function SitePanel() {
   const sites = useApp((s) => s.sites);
@@ -119,6 +119,12 @@ export function SitePanel() {
               <SeasonsChart a={a} />
             </section>
             <Metrics a={a} />
+            <section>
+              <h3 className="mb-1 text-[11px] font-medium uppercase tracking-wider text-neutral-400">
+                Solar energy at a panel (next 30 days)
+              </h3>
+              <SolarEnergy a={a} />
+            </section>
             <section>
               <h3 className="mb-1 text-[11px] font-medium uppercase tracking-wider text-neutral-400">
                 Sunlight &amp; Earth view around the site (20 × 20 km)

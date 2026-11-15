@@ -17,6 +17,10 @@ const GLOSSARY: [string, string][] = [
     "Time when at least half of the Earth's disk is above the terrain horizon: a direct-to-Earth (DTE) radio link is possible without a relay satellite.",
   ],
   [
+    "Solar energy (W/m²)",
+    "Sunlight reaching 1 m² of solar panel, before the cells' efficiency: 1361 W/m² at Earth's mean distance from the Sun, times the share of the Sun's disk above the terrain and the cosine of the angle to the panel. A vertical panel turned to the Sun suits the poles, where the Sun stays low; a flat panel suits the equator.",
+  ],
+  [
     "Lunar day and night",
     "The Moon turns once per lunation, so near the equator a day lasts about 15 Earth days and a night about 15 more. Near the poles the Sun skims the horizon instead, and terrain decides everything.",
   ],

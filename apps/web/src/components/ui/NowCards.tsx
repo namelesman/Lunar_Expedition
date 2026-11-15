@@ -2,7 +2,15 @@
 
 import type { BodyPosition, Transition } from "@lunar/core";
 import type { SiteAnalysis } from "@/lib/conditions";
-import { COLORS, fmtDeg, fmtIn, fmtPct, fmtUtc } from "@/lib/format";
+import {
+  COLORS,
+  fmtDeg,
+  fmtIn,
+  fmtKWhM2,
+  fmtPct,
+  fmtUtc,
+  fmtWm2,
+} from "@/lib/format";
 
 function status(p: BodyPosition): {
   text: string;
@@ -181,5 +189,62 @@ export function Metrics({ a }: { a: SiteAnalysis }) {
         </div>
       ))}
     </dl>
+  );
+}
+
+/**
+ * Sunlight reaching 1 m² of panel over the 30-day window, for the two simple
+ * layouts. No cell efficiency, dust or temperature: the physical input only.
+ */
+export function SolarEnergy({ a }: { a: SiteAnalysis }) {
+  const e = a.energy;
+  const panels = [
+    {
+      label: "Vertical, facing the Sun",
+      mean: e.verticalMeanWm2,
+      total: e.verticalWhPerM2,
+      peak: e.verticalPeakWm2,
+    },
+    {
+      label: "Flat on the ground",
+      mean: e.horizontalMeanWm2,
+      total: e.horizontalWhPerM2,
+      peak: e.horizontalPeakWm2,
+    },
+  ];
+  return (
+    <div>
+      <dl className="grid grid-cols-2 gap-1.5">
+        {panels.map((p) => (
+          <div
+            key={p.label}
+            className="rounded border border-white/10 bg-white/[0.02] px-2 py-1.5"
+          >
+            <dt className="text-[10px] uppercase tracking-wide text-neutral-500">
+              {p.label}
+            </dt>
+            <dd>
+              <span className="font-mono text-sm text-neutral-100">
+                {fmtWm2(p.mean)}
+              </span>{" "}
+              <span className="text-[10px] text-neutral-400">average</span>
+              <span className="block text-[10px] text-neutral-400">
+                {fmtKWhM2(p.total)} in 30 days
+              </span>
+              <span className="block text-[10px] text-neutral-400">
+                peak {fmtWm2(p.peak)}
+              </span>
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-1 text-[10px] leading-snug text-neutral-500">
+        Sunlight reaching the panel, before cell efficiency: 1361 W/m² at 1 AU,
+        scaled by the Sun&apos;s distance, times the share of the Sun&apos;s
+        disk above the terrain and the cosine of the angle to the panel.
+        Averages include the night. Near the poles the Sun stays low, so
+        vertical panels suit polar sites.
+      </p>
+    </div>
   );
 }
