@@ -210,43 +210,58 @@ export interface GridCell {
 // ---------------------------------------------------------------------------
 
 export interface RouteParams {
-  /** Cells steeper than this are blocked. Default 15. */
+  /** Ground steeper than this (deg) is impassable. Default 15. */
   maxSlopeDeg: number;
-  /** Extra cost per shadowed cell. 0 = ignore shadow. */
+  /**
+   * Cost of slope: each metre costs 1 + slopeWeight · (slope / maxSlopeDeg)²,
+   * so gentle ground is preferred. 0 = slope only blocks.
+   */
+  slopeWeight: number;
+  /**
+   * Cost of darkness: each metre costs 1 + shadowWeight · (1 − sunlit share),
+   * the share coming from the 30-day sunlight map. 0 = ignore light.
+   */
   shadowWeight: number;
-  /** Date used to compute the shadow map. */
-  time: string;
-  /** Rover speed on flat terrain, m/s (for the time estimate). */
+  /** Assumed average rover speed, m/s (time estimate only). */
   roverSpeedMps: number;
 }
 
-export const DEFAULT_ROUTE_PARAMS: Omit<RouteParams, "time"> = {
+export const DEFAULT_ROUTE_PARAMS: RouteParams = {
   maxSlopeDeg: 15,
-  shadowWeight: 5,
+  slopeWeight: 1,
+  shadowWeight: 3,
   roverSpeedMps: 0.1,
 };
 
+/** Node of a terrain grid: row 0 is the north edge. */
 export interface RoutePoint extends GridCell, LatLon {
   elevationM: number;
-  /** Distance from the start along the route, meters. */
+  /** Distance from the start along the ground, meters. */
   distanceM: number;
+  /** Steepest slope of the ground at this node, degrees. */
   slopeDeg: number;
-  inShadow: boolean;
+  /** Sunlit share (0–1) of the 30-day window, if a sunlight map was given. */
+  sunShare: number | null;
 }
 
 export interface Route {
-  siteId: string;
   params: RouteParams;
   start: GridCell;
   goal: GridCell;
   points: RoutePoint[];
+  /** Length along the ground (with relief), meters. */
   lengthM: number;
+  /** Straight-line distance start → goal on the map, meters. */
+  straightM: number;
   maxSlopeDeg: number;
-  /** Fraction of the route length in shadow (0..1). */
-  shadowFraction: number;
+  climbM: number;
+  descentM: number;
+  /** Length-weighted mean sunlit share along the route, or null without a sunlight map. */
+  meanSunShare: number | null;
+  /** lengthM / roverSpeedMps, hours. */
   estimatedTimeH: number;
   totalCost: number;
-  /** Nodes expanded by A* (for diagnostics). */
+  /** Nodes expanded by A* (diagnostics). */
   expanded: number;
 }
 

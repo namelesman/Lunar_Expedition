@@ -21,6 +21,10 @@ const GLOSSARY: [string, string][] = [
     "Sunlight reaching 1 m² of solar panel, before the cells' efficiency: 1361 W/m² at Earth's mean distance from the Sun, times the share of the Sun's disk above the terrain and the cosine of the angle to the panel. A vertical panel turned to the Sun suits the poles, where the Sun stays low; a flat panel suits the equator.",
   ],
   [
+    "Rover route",
+    "The cheapest drivable path from the site to a spot on the sunlight map, found by the A* search over terrain points 100 m apart. Ground steeper than the slope limit (15° by default) is impassable; each metre costs more on steeper ground and, if you choose, on less sunlit ground. The time assumes an average speed of 0.1 m/s.",
+  ],
+  [
     "Lunar day and night",
     "The Moon turns once per lunation, so near the equator a day lasts about 15 Earth days and a night about 15 more. Near the poles the Sun skims the horizon instead, and terrain decides everything.",
   ],
@@ -63,7 +67,7 @@ const STEPS = [
   "The cards show where the Sun and the Earth are now, against the real terrain horizon, and how long until sunset, sunrise, Earthset or Earthrise.",
   "“Local sky” is a 360° panorama of the horizon with the Sun and Earth tracks; “Next 30 days” shows the power and communication windows. Click the timeline to move the clock.",
   "“Next 12 lunations” compares seasons; click a column to analyse that month.",
-  "“Sunlight & Earth view around the site” maps 20 × 20 km of terrain to find a better-lit or better-connected spot nearby; click a spot to open it.",
+  "“Sunlight & Earth view around the site” maps 20 × 20 km of terrain to find a better-lit or better-connected spot nearby; click a spot to open it, or plan a rover route to it.",
   "Pin up to three sites with “+ Compare” and open “Compare pinned sites” to see them side by side. The time bar at the bottom plays the lunar month or jumps to any date (UTC).",
 ];
 
@@ -152,6 +156,11 @@ export function HelpDialog() {
               distorted there. The 3D view shades the relief but casts no
               shadows; the charts and the sunlight map do account for terrain
               shadowing.
+            </li>
+            <li>
+              Rover routes use slopes averaged over 100–200 m; boulders and
+              craters smaller than the elevation data&apos;s pixels are not
+              seen. They are planning sketches, not traverse plans.
             </li>
             <li>
               Windows are sampled every 30 minutes (2 hours for the 12-lunation

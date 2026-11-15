@@ -2,9 +2,15 @@
 
 import {
   cellOffsetM,
+  cellValuesOnRelief,
+  DEFAULT_ROUTE_PARAMS,
+  gridNodeOffsetM,
+  gridSlopesDeg,
   illuminationFractions,
   moonSkyState,
+  planRoute,
   type CellHorizons,
+  type GridCell,
   type Site,
 } from "@lunar/core";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -13,6 +19,13 @@ import { fmtLatLon, fmtUtc } from "@/lib/format";
 import { useApp } from "@/lib/store";
 import { startIllumination } from "@/lib/terrainHorizon";
 import { makeCustomSite } from "../ui/CustomSiteForm";
+import {
+  RouteControls,
+  RouteProfile,
+  RouteStats,
+  routeProblem,
+  STEEP_HATCH_CSS,
+} from "./RoutePanel";
 
 type Mode = "sun" | "earth" | "now";
 
@@ -68,17 +81,23 @@ function hillshade(h: CellHorizons): Float32Array {
 
 const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 
-/** Distance (km) and compass direction of a cell from the site (north at the site). */
-function placeOf(h: CellHorizons, idx: number): { km: number; dir: string } {
-  const { x, y } = cellOffsetM(h, Math.floor(idx / h.n), idx % h.n);
+/** Distance (km) and compass direction of a plane offset (m) from the site (north at the site). */
+function placeXY({ x, y }: { x: number; y: number }): { km: number; dir: string } {
   const km = Math.hypot(x, y) / 1000;
   const b = ((Math.atan2(x, y) * 180) / Math.PI + 360) % 360;
   return { km, dir: COMPASS[Math.round(b / 45) % 8] };
 }
 
-function placeText(h: CellHorizons, idx: number): string {
-  const p = placeOf(h, idx);
+function placeOf(h: CellHorizons, idx: number): { km: number; dir: string } {
+  return placeXY(cellOffsetM(h, Math.floor(idx / h.n), idx % h.n));
+}
+
+function placeLabel(p: { km: number; dir: string }): string {
   return p.km < 0.25 ? "at the site" : `${p.km.toFixed(1)} km ${p.dir}`;
+}
+
+function placeText(h: CellHorizons, idx: number): string {
+  return placeLabel(placeOf(h, idx));
 }
 
 const pct = (f: number) => `${Math.round(f * 100)}%`;
@@ -188,8 +207,15 @@ function ReadyMap({
   const timeMs = useApp((s) => s.timeMs);
   const addCustomSite = useApp((s) => s.addCustomSite);
   const [mode, setMode] = useState<Mode>("sun");
-  const [hover, setHover] = useState<number | null>(null);
+  const [hoverNode, setHoverNode] = useState<GridCell | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const steepCanvas = useRef<HTMLCanvasElement>(null);
+  // Rover route (start at the site, destination clicked on the map).
+  const [routeOn, setRouteOn] = useState(false);
+  const [goal, setGoal] = useState<GridCell | null>(null);
+  const [maxSlope, setMaxSlope] = useState(DEFAULT_ROUTE_PARAMS.maxSlopeDeg);
+  const [preferSun, setPreferSun] = useState(true);
+  const [probe, setProbe] = useState<number | null>(null);
 
   const window30 = useMemo(() => illuminationFractions(h, series), [h, series]);
   const now = useMemo(
@@ -208,37 +234,72 @@ function ReadyMap({
   const rn = h.relief.n;
   const k = (rn - 1) / (n - 1); // relief pixels per cell (5)
   const centre = ((n - 1) / 2) * n + (n - 1) / 2;
+  const mid = (rn - 1) / 2; // the site's relief node
+  const hover =
+    hoverNode === null ? null : Math.round(hoverNode.row / k) * n + Math.round(hoverNode.col / k);
+
+  // Map values on the relief nodes (one canvas pixel per node).
+  const nodeValues = useMemo(() => cellValuesOnRelief(h, values), [h, values]);
+  const slopes = useMemo(() => gridSlopesDeg(h.relief), [h]);
+  const sunNodes = useMemo(() => cellValuesOnRelief(h, window30.sun), [h, window30]);
+  const result = useMemo(
+    () =>
+      routeOn && goal
+        ? planRoute({
+            grid: h.relief,
+            center: { lat: h.lat, lon: h.lon },
+            start: { row: mid, col: mid },
+            goal,
+            params: {
+              maxSlopeDeg: maxSlope,
+              shadowWeight: preferSun ? DEFAULT_ROUTE_PARAMS.shadowWeight : 0,
+            },
+            sunShare: sunNodes,
+            slopesDeg: slopes,
+          })
+        : null,
+    [routeOn, goal, h, mid, maxSlope, preferSun, sunNodes, slopes],
+  );
+  const route = result?.ok ? result.route : null;
+  const probePoint = route && probe !== null ? route.points[probe] : undefined;
 
   useEffect(() => {
     const ctx = canvas.current?.getContext("2d");
     if (!ctx) return;
     const img = ctx.createImageData(rn, rn);
     const lut = mode === "earth" ? LUTS.earth : LUTS.sun;
-    for (let i = 0; i < rn; i++) {
-      const v = i / k;
-      const r0 = Math.min(n - 2, Math.floor(v)),
-        fv = v - r0;
-      for (let j = 0; j < rn; j++) {
-        const u = j / k;
-        const c0 = Math.min(n - 2, Math.floor(u)),
-          fu = u - c0;
-        const a = r0 * n + c0;
-        let f =
-          (values[a] * (1 - fu) + values[a + 1] * fu) * (1 - fv) +
-          (values[a + n] * (1 - fu) + values[a + n + 1] * fu) * fv;
-        // "now" is lit or shadow: a sharp edge along the interpolated boundary.
-        if (mode === "now") f = f >= 0.5 ? 1 : 0;
-        const li = Math.round(Math.min(1, Math.max(0, f)) * 255) * 3;
-        const s = 0.35 + 0.65 * shade[i * rn + j];
-        const o = (i * rn + j) * 4;
-        img.data[o] = lut[li] * s;
-        img.data[o + 1] = lut[li + 1] * s;
-        img.data[o + 2] = lut[li + 2] * s;
-        img.data[o + 3] = 255;
-      }
+    for (let i = 0; i < rn * rn; i++) {
+      let f = nodeValues[i];
+      // "now" is lit or shadow: a sharp edge along the interpolated boundary.
+      if (mode === "now") f = f >= 0.5 ? 1 : 0;
+      const li = Math.round(Math.min(1, Math.max(0, f)) * 255) * 3;
+      const s = 0.35 + 0.65 * shade[i];
+      const o = i * 4;
+      img.data[o] = lut[li] * s;
+      img.data[o + 1] = lut[li + 1] * s;
+      img.data[o + 2] = lut[li + 2] * s;
+      img.data[o + 3] = 255;
     }
     ctx.putImageData(img, 0, 0);
-  }, [values, shade, mode, n, rn, k]);
+  }, [nodeValues, shade, mode, rn]);
+
+  // Hatch over the ground the rover cannot drive (route mode only).
+  useEffect(() => {
+    const ctx = steepCanvas.current?.getContext("2d");
+    if (!ctx) return;
+    const img = ctx.createImageData(rn, rn);
+    for (let i = 0; i < rn; i++)
+      for (let j = 0; j < rn; j++) {
+        if (slopes[i * rn + j] <= maxSlope) continue;
+        const m = (i + j) % 4;
+        if (m > 1) continue;
+        const o = (i * rn + j) * 4;
+        const v = m === 0 ? 255 : 0;
+        img.data[o] = img.data[o + 1] = img.data[o + 2] = v;
+        img.data[o + 3] = m === 0 ? 210 : 170;
+      }
+    ctx.putImageData(img, 0, 0);
+  }, [routeOn, slopes, maxSlope, rn]);
 
   const stats = useMemo(() => {
     let min = Infinity,
@@ -253,16 +314,37 @@ function ReadyMap({
   /** Less than 3 points between the best and worst cells: no "best spot". */
   const uniform = stats.max - stats.min < 0.03;
 
-  const toCell = (e: React.MouseEvent<SVGSVGElement>) => {
+  /** Relief node under the pointer (canvas pixel j is node j). */
+  const toNode = (e: React.MouseEvent<SVGSVGElement>): GridCell => {
     const b = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - b.left) / b.width) * rn;
     const y = ((e.clientY - b.top) / b.height) * rn;
-    const c = Math.min(n - 1, Math.max(0, Math.round((x - 0.5) / k)));
-    const r = Math.min(n - 1, Math.max(0, Math.round((y - 0.5) / k)));
-    return r * n + c;
+    return {
+      row: Math.min(rn - 1, Math.max(0, Math.floor(y))),
+      col: Math.min(rn - 1, Math.max(0, Math.floor(x))),
+    };
   };
+  const cellOfNode = (p: GridCell) => Math.round(p.row / k) * n + Math.round(p.col / k);
+  const nodeOfCell = (idx: number): GridCell => ({
+    row: Math.floor(idx / n) * k,
+    col: (idx % n) * k,
+  });
   const open = (idx: number) =>
     addCustomSite(makeCustomSite(h.cellLat[idx], h.cellLon[idx]));
+  const routeTo = (p: GridCell) => {
+    setRouteOn(true);
+    setGoal(p);
+    setProbe(null);
+  };
+  const startRoute = () => {
+    setRouteOn(true);
+    if (!goal && !uniform && best !== centre) setGoal(nodeOfCell(best));
+  };
+  const openGoal = () => {
+    if (!route) return;
+    const last = route.points[route.points.length - 1];
+    addCustomSite(makeCustomSite(last.lat, last.lon));
+  };
 
   const what =
     mode === "earth"
@@ -320,12 +402,25 @@ function ReadyMap({
           role="img"
           aria-label={`${summary} Map of 20 by 20 km centred on ${site.name}, north up.`}
         />
+        {routeOn && (
+          <canvas
+            ref={steepCanvas}
+            width={rn}
+            height={rn}
+            className="pointer-events-none absolute inset-0 h-full w-full rounded [image-rendering:pixelated]"
+            aria-hidden
+          />
+        )}
         <svg
           viewBox={`0 0 ${rn} ${rn}`}
           className="absolute inset-0 h-full w-full cursor-crosshair"
-          onPointerMove={(e) => setHover(toCell(e))}
-          onPointerLeave={() => setHover(null)}
-          onClick={(e) => open(toCell(e))}
+          onPointerMove={(e) => setHoverNode(toNode(e))}
+          onPointerLeave={() => setHoverNode(null)}
+          onClick={(e) => {
+            const p = toNode(e);
+            if (routeOn) routeTo(p);
+            else open(cellOfNode(p));
+          }}
           aria-hidden
         >
           {mode !== "now" && !uniform && best !== centre && (
@@ -355,12 +450,58 @@ function ReadyMap({
             stroke="#ffffff"
             strokeWidth={1.2}
           />
-          {hv && (
+          {route && (
+            <g fill="none" strokeLinejoin="round" strokeLinecap="round">
+              <polyline
+                points={route.points.map((p) => `${p.col + 0.5},${p.row + 0.5}`).join(" ")}
+                stroke="#0d0d0f"
+                strokeWidth={3.4}
+              />
+              <polyline
+                points={route.points.map((p) => `${p.col + 0.5},${p.row + 0.5}`).join(" ")}
+                stroke="#ffffff"
+                strokeWidth={1.5}
+              />
+            </g>
+          )}
+          {routeOn && goal && (
+            <rect
+              x={goal.col + 0.5 - 2.5}
+              y={goal.row + 0.5 - 2.5}
+              width={5}
+              height={5}
+              fill="#ffffff"
+              stroke="#0d0d0f"
+              strokeWidth={1.2}
+              transform={`rotate(45 ${goal.col + 0.5} ${goal.row + 0.5})`}
+            />
+          )}
+          {probePoint && (
+            <circle
+              cx={probePoint.col + 0.5}
+              cy={probePoint.row + 0.5}
+              r={3.5}
+              fill="#e5e5e5"
+              stroke="#0d0d0f"
+              strokeWidth={1.5}
+            />
+          )}
+          {hv && !routeOn && (
             <rect
               x={hv.x - k / 2}
               y={hv.y - k / 2}
               width={k}
               height={k}
+              fill="none"
+              stroke="#ffffff"
+              strokeWidth={0.8}
+            />
+          )}
+          {hoverNode && routeOn && (
+            <circle
+              cx={hoverNode.col + 0.5}
+              cy={hoverNode.row + 0.5}
+              r={2.5}
               fill="none"
               stroke="#ffffff"
               strokeWidth={0.8}
@@ -405,8 +546,47 @@ function ReadyMap({
         </div>
       )}
 
+      {routeOn && (
+        <div className="flex items-center justify-center gap-3 text-[10px] text-neutral-400">
+          <span className="flex items-center gap-1">
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-sm border border-white/20 bg-neutral-700"
+              style={{ backgroundImage: STEEP_HATCH_CSS }}
+            />
+            Steeper than {maxSlope}°
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-[3px] w-4 rounded-full bg-white ring-1 ring-black" />
+            Route from the site
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rotate-45 bg-white ring-1 ring-black" />
+            Destination
+          </span>
+        </div>
+      )}
+
       <p className="min-h-[2.5em] text-[11px] text-neutral-300" aria-live="polite">
-        {hover !== null ? (
+        {hoverNode !== null && routeOn ? (
+          (() => {
+            const i = hoverNode.row * rn + hoverNode.col;
+            return (
+              <>
+                <span className="font-medium text-neutral-100">
+                  {placeLabel(placeXY(gridNodeOffsetM(h.relief, hoverNode.row, hoverNode.col)))}
+                </span>
+                {" · "}slope {slopes[i].toFixed(0)}° · {Math.round(h.relief.heightM[i])} m · Sun{" "}
+                {pct(sunNodes[i])}
+                <span className="text-neutral-500">
+                  {" — "}
+                  {slopes[i] > maxSlope
+                    ? `too steep for the rover (over ${maxSlope}°)`
+                    : "click to drive here"}
+                </span>
+              </>
+            );
+          })()
+        ) : hover !== null ? (
           <>
             <span className="font-medium text-neutral-100">{placeText(h, hover)}</span>
             {" · "}Sun {pct(window30.sun[hover])} · Earth {pct(window30.earth[hover])}
@@ -421,6 +601,58 @@ function ReadyMap({
           summary
         )}
       </p>
+
+      {routeOn ? (
+        <section
+          aria-label="Rover route"
+          className="space-y-2 rounded border border-white/10 bg-white/[0.03] p-2"
+        >
+          <div className="flex items-center justify-between">
+            <h4 className="text-[11px] font-medium text-neutral-100">Rover route from the site</h4>
+            <button
+              type="button"
+              onClick={() => {
+                setRouteOn(false);
+                setProbe(null);
+              }}
+              className="rounded border border-white/15 px-1.5 text-[10px] text-neutral-300 hover:bg-white/10"
+            >
+              Close route
+            </button>
+          </div>
+          <RouteControls
+            maxSlope={maxSlope}
+            setMaxSlope={setMaxSlope}
+            preferSun={preferSun}
+            setPreferSun={setPreferSun}
+          />
+          {route && route.points.length > 1 ? (
+            <>
+              <RouteStats route={route} />
+              <RouteProfile route={route} probe={probe} onProbe={setProbe} />
+              <button
+                type="button"
+                onClick={openGoal}
+                className="rounded border border-white/15 px-2 py-0.5 text-[11px] text-neutral-200 hover:bg-white/10"
+              >
+                Open the destination as a custom point
+              </button>
+            </>
+          ) : (
+            <p className="text-[11px] text-amber-200/90" role="status">
+              {route ? "The destination is the site itself: pick a spot farther away." : routeProblem(result, maxSlope)}
+            </p>
+          )}
+        </section>
+      ) : (
+        <button
+          type="button"
+          onClick={startRoute}
+          className="w-full rounded border border-white/15 px-2 py-1 text-[11px] text-neutral-200 hover:bg-white/10"
+        >
+          Plan a rover route from the site
+        </button>
+      )}
 
       {mode !== "now" && !uniform && (
         <details className="text-[11px] text-neutral-300">
@@ -444,7 +676,17 @@ function ReadyMap({
                   <td>{pct(window30.sun[idx])}</td>
                   <td>{pct(window30.earth[idx])}</td>
                   <td>{Math.round(h.cellElevationM[idx])} m</td>
-                  <td className="text-right">
+                  <td className="space-x-1 whitespace-nowrap text-right">
+                    {idx !== centre && (
+                      <button
+                        type="button"
+                        onClick={() => routeTo(nodeOfCell(idx))}
+                        className="rounded border border-white/15 px-1.5 hover:bg-white/10"
+                        aria-label={`Plan a rover route from the site to ${placeText(h, idx)}`}
+                      >
+                        Route
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => open(idx)}
@@ -468,6 +710,8 @@ function ReadyMap({
         Observer {h.observerHeightM} m above ground at each 500 m cell; horizon to{" "}
         300 km from {h.demSource}. Shading shows relief (light from the NW), north
         at the site is up. Computed in your browser: {info}.
+        {routeOn &&
+          ` Route: the cheapest path (A*) over terrain points 100 m apart; ground steeper than ${maxSlope}° is impassable, and each metre costs more on steeper${preferSun ? " and less sunlit" : ""} ground. Slopes are averaged over 100–200 m and the elevation data do not show boulders or craters smaller than their pixels: a planning sketch, not a traverse plan. Driving time assumes an average speed of ${DEFAULT_ROUTE_PARAMS.roverSpeedMps} m/s.`}
       </p>
     </div>
   );

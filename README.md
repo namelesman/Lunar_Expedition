@@ -32,6 +32,8 @@ All of it sits on a real-time 3D Moon built from NASA LRO data.
   - best-spot table;
   - "shadows now" view;
   - click a spot to open it as a new site.
+- **Rover routes** on that map: the cheapest drivable path from the site under a slope limit,
+  optionally keeping to sunlit ground, with distance, driving time, climb and an elevation profile.
 - **Compare** up to three sites side by side.
 - **Time controls:** pick any date and time, or play the month.
 - **Real sky:** the Sun and Earth at their true positions and sizes, the Earth's phase, and the
@@ -46,7 +48,7 @@ the app.
 ```
 apps/web/        Next.js (App Router) + TypeScript: UI, 3D globe, Web Worker for terrain (static, no server code)
 packages/core/   Pure, tested logic: types, coordinates, Sun/Earth ephemeris, terrain horizons, DEM tiles,
-                 sunlight map, lunations
+                 sunlight map, rover routes, lunations
 scripts/         Node + TypeScript data pipeline (GLB optimization, horizon masks, DEM tiles, sky textures)
 data/            sites.json (curated landing sites with official sources)
 docs/            Challenge summary and submission text
@@ -172,6 +174,43 @@ host, cold cache):
 
 At Shackleton the map shows the floor of the crater in permanent shadow (0 %) and the rim lit up
 to 96 % of the window, 10 km from the centre. At Apollo 11 the mare is flat: 47–49 % everywhere.
+
+### Rover routes on the sunlight map
+
+Once the sunlight map of a site is ready, "Plan a rover route from the site" finds a drivable path
+from the site to any spot of the map: click the map, or use "Route" in the best-spot table. The
+search runs in the browser in a few milliseconds (`packages/core/src/route.ts`):
+
+- **Grid:** the map's relief, 201 × 201 terrain points 100 m apart, from the same LOLA data as the
+  horizons.
+- **Search:** A* over the 8 neighbours of each point. The heuristic is the straight-line (octile)
+  distance on the map, which never exceeds the true cost, so the route is the cheapest on the grid.
+- **Impassable ground:** a point whose slope is above the limit (15° by default, 5–30° in the
+  panel), or a step that climbs or drops more steeply than that. The map hatches that ground.
+- **Cost of a step:** its length along the ground times
+  1 + (slope / limit)² and, with "Prefer sunlit ground", times 1 + 3 × (1 − sunlit share of the
+  30 days).
+- **Output:** distance on the ground and in a straight line, driving time at an assumed 0.1 m/s,
+  steepest slope, climb and descent, the sunlit share along the way, and an elevation profile
+  linked to the map.
+
+Examples for the window starting 2026-11-14:
+
+- IM-2: 11.2 km to the best-lit spot 10 km W (66 % sunlit), 8° at most, 313 m of climb.
+- Apollo 11: 12.0 km across the mare with 2° at most.
+- Shackleton: no route out of the crater floor at 15° or at 25°; the walls are steeper.
+
+Limits: slopes are averaged over 100–200 m, and the elevation data do not show boulders or craters
+smaller than their pixels (80 m south of 80°S, coarser elsewhere). The route is a planning
+sketch, not a traverse plan.
+
+Tests (`packages/core/test/route.test.ts`):
+
+- A straight line on flat ground.
+- A detour through the only gap in a steep wall.
+- An enclosed start, a blocked goal and an off-grid point are reported as such.
+- The sunlight preference changes the route only when it is on.
+- A* finds the same cost as plain Dijkstra on rough ground while expanding fewer points.
 
 ### Next 12 lunations (seasons)
 
